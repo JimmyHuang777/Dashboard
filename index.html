@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>報名管理後台 · Registration Admin</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root {
+    --ink: #14171A; --ink-soft: #6B7078; --line: #E4E6EA;
+    --paper: #FFFFFF; --canvas: #F7F8F9;
+    --accent: #06C755; --accent-dark: #05A648;
+    --amber: #B7791F; --amber-bg: #FBF3E4;
+    --red: #C0392B; --red-bg: #FBEAE8;
+    --blue: #2563A8; --blue-bg: #E9F1FA;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; background: var(--canvas); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-box { width: 100%; max-width: 360px; }
+  .login-box h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; }
+  .login-box .subtitle { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 28px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--line);
+    border-radius: 8px; font-size: 14.5px; font-family: inherit; background: var(--paper);
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%; padding: 12px; background: var(--ink); color: white; border: none;
+    border-radius: 8px; font-size: 14.5px; font-weight: 600; cursor: pointer; margin-top: 6px;
+  }
+  .btn-primary:hover { background: #000; }
+  .btn-primary:disabled { background: #B9BCC2; cursor: not-allowed; }
+
+  .login-error { color: var(--red); font-size: 13px; margin-top: 10px; display: none; }
+
+  #dashboard-screen { display: none; }
+
+  .topbar {
+    background: var(--paper); border-bottom: 1px solid var(--line); padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+
+  .topbar .title-group { display: flex; align-items: baseline; gap: 10px; }
+  .topbar .title { font-size: 16px; font-weight: 700; }
+
+  .role-badge {
+    font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+  }
+  .role-badge.super_admin { background: var(--red-bg); color: var(--red); }
+  .role-badge.organizer { background: var(--blue-bg); color: var(--blue); }
+  .role-badge.staff { background: var(--amber-bg); color: var(--amber); }
+
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+
+  select#event-select {
+    padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 8px;
+    font-size: 13.5px; font-family: inherit; background: var(--paper); color: var(--ink); min-width: 200px;
+  }
+
+  .btn-new-event {
+    padding: 8px 14px; background: var(--ink); color: white; border: none;
+    border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .btn-new-event:hover { background: #000; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal-box {
+    background: var(--paper); border-radius: 14px; padding: 28px; width: 100%;
+    max-width: 520px; max-height: 88vh; overflow-y: auto;
+  }
+  .modal-box h2 { margin: 0 0 4px; font-size: 18px; }
+  .modal-box .modal-sub { font-size: 13px; color: var(--ink-soft); margin: 0 0 22px; }
+
+  .modal-field { margin-bottom: 16px; }
+  .modal-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .modal-field input, .modal-field textarea {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: var(--paper);
+  }
+  .modal-field input:focus, .modal-field textarea:focus { outline: none; border-color: var(--accent); }
+  .modal-field textarea { min-height: 90px; resize: vertical; font-family: 'SF Mono', Consolas, monospace; font-size: 12.5px; }
+  .modal-hint { font-size: 11.5px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .field-builder-item {
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--canvas);
+  }
+  .fb-row1 { display: grid; grid-template-columns: 1fr 130px 28px; gap: 8px; align-items: start; margin-bottom: 8px; }
+  .fb-row2 { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 8px; }
+  .field-builder-item input, .field-builder-item select {
+    padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit; background: var(--paper);
+  }
+  .field-builder-item .remove-field-btn {
+    background: var(--red-bg); color: var(--red); border: none; border-radius: 6px;
+    width: 28px; height: 34px; cursor: pointer; font-size: 15px;
+  }
+  .fb-required-toggle {
+    padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--line); background: var(--paper);
+    color: var(--ink-soft); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .fb-required-toggle.is-required { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .btn-add-field {
+    background: none; border: 1.5px dashed var(--line); border-radius: 8px; padding: 8px;
+    width: 100%; color: var(--ink-soft); font-size: 13px; cursor: pointer; margin-bottom: 16px;
+  }
+  .btn-add-field:hover { border-color: var(--accent); color: var(--accent-dark); }
+
+  .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-actions .btn-primary { flex: 1; }
+  .modal-actions .btn-cancel {
+    flex: 1; padding: 12px; background: var(--canvas); color: var(--ink); border: 1.5px solid var(--line);
+    border-radius: 8px; font-size: 14.5px; font-weight: 600; cursor: pointer;
+  }
+  .modal-error { color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
+
+  .admin-email { font-size: 13px; color: var(--ink-soft); }
+
+  .btn-text {
+    background: none; border: none; color: var(--ink-soft); font-size: 13px;
+    cursor: pointer; padding: 6px 8px; text-decoration: underline;
+  }
+  .btn-text:hover { color: var(--ink); }
+
+  .content { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  .no-access {
+    text-align: center; padding: 80px 24px; color: var(--ink-soft);
+  }
+  .no-access .big { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+
+  .stats {
+    display: flex; gap: 32px; padding: 20px 0 24px; border-bottom: 1px solid var(--line);
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .stat { display: flex; flex-direction: column; gap: 4px; }
+  .stat .num { font-size: 28px; font-weight: 700; line-height: 1; }
+  .stat .label { font-size: 12.5px; color: var(--ink-soft); }
+  .stat.pending .num { color: var(--amber); }
+  .stat.confirmed .num { color: var(--blue); }
+  .stat.checked_in .num { color: var(--accent-dark); }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+
+  #search-input {
+    flex: 1; min-width: 200px; padding: 10px 14px; border: 1.5px solid var(--line);
+    border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--paper);
+  }
+  #search-input:focus { outline: none; border-color: var(--accent); }
+
+  .refresh-note { font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; padding: 0 4px; }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; }
+
+  .staff-note {
+    font-size: 12.5px; color: var(--amber); background: var(--amber-bg);
+    padding: 8px 12px; border-radius: 8px; margin-bottom: 14px;
+  }
+
+  .table-wrap { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: max-content; }
+
+  thead th {
+    text-align: left; padding: 12px 16px; font-weight: 600; color: var(--ink-soft);
+    font-size: 12.5px; border-bottom: 1px solid var(--line); background: var(--canvas); white-space: nowrap;
+  }
+
+  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #FAFBFC; }
+
+  .name-cell { display: flex; align-items: center; gap: 10px; }
+  .name-cell img { width: 30px; height: 30px; border-radius: 50%; background: var(--line); object-fit: cover; flex-shrink: 0; }
+  .name-cell .name-text { font-weight: 600; white-space: nowrap; }
+
+  /* Keep the name column visible while scrolling horizontally through
+     many custom-field columns. */
+  thead th:first-child, tbody td:first-child {
+    position: sticky; left: 0; background: var(--paper); z-index: 1;
+  }
+  thead th:first-child { background: var(--canvas); z-index: 2; }
+
+  .status-select {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    border: 1.5px solid transparent; font-family: inherit; cursor: pointer;
+  }
+  .status-select.pending { background: var(--amber-bg); color: var(--amber); }
+  .status-select.confirmed { background: var(--blue-bg); color: var(--blue); }
+  .status-select.checked_in { background: #E4F8EC; color: var(--accent-dark); }
+  .status-select.cancelled { background: var(--red-bg); color: var(--red); }
+  .status-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .notes-cell { color: var(--ink-soft); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--ink-soft); }
+  .empty-state .big { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+
+  @media (max-width: 700px) {
+    .table-wrap { overflow-x: auto; }
+    table { min-width: 640px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>報名管理後台</h1>
+    <p class="subtitle">Registration Admin — 請使用管理員帳號登入</p>
+    <form id="login-form">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>密碼 Password</label>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-primary" id="login-btn">登入 Log in</button>
+      <p class="login-error" id="login-error"></p>
+    </form>
+  </div>
+</div>
+
+<div id="dashboard-screen">
+  <div class="topbar">
+    <div class="title-group">
+      <div class="title">報名管理後台</div>
+      <span class="role-badge" id="role-badge"></span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-new-event" id="new-event-btn" style="display:none;">+ 新增活動 New Event</button>
+      <button class="btn-new-event" id="manage-events-btn" style="display:none; background:var(--ink-soft);">管理活動 Manage</button>
+      <select id="event-select"><option>載入活動中…</option></select>
+      <span class="admin-email" id="admin-email-label"></span>
+      <button class="btn-text" id="logout-btn">登出</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="new-event-modal">
+    <div class="modal-box">
+      <h2 id="ne-modal-title">新增活動 New Event</h2>
+      <p class="modal-sub">建立後即可產生報名連結，無需修改任何程式碼。</p>
+
+      <form id="new-event-form">
+        <input type="hidden" id="ne-editing-id" value="">
+        <div class="modal-field">
+          <label>活動名稱 Event name</label>
+          <input type="text" id="ne-name" required placeholder="例：發一天元長聖道場｜辦事人員班">
+        </div>
+
+        <div class="modal-field">
+          <label>活動描述 Description <span class="modal-hint" style="margin:0;">選填，會顯示在報名頁面上</span></label>
+          <textarea id="ne-description" style="font-family:inherit; font-size:14px; min-height:70px;" placeholder="例：請攜帶身分證正本，並於活動前 10 分鐘完成報到。"></textarea>
+        </div>
+
+        <div class="field-row">
+          <div class="modal-field">
+            <label>日期 Date</label>
+            <input type="date" id="ne-date">
+          </div>
+          <div class="modal-field">
+            <label>地點 Location</label>
+            <input type="text" id="ne-location" placeholder="例：長聖佛宮">
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label>連結代碼 Slug <span class="modal-hint" style="margin:0;">用於報名連結，只能用英文/數字/連字號</span></label>
+          <input type="text" id="ne-slug" required placeholder="例：banshi-2026-1101" pattern="[a-z0-9\-]+">
+          <p class="modal-hint" id="ne-slug-lock-note" style="display:none;">編輯活動時無法更改連結代碼，因為 LINE 連結已經產生。</p>
+        </div>
+
+        <div class="modal-field">
+          <label>自訂報名欄位 Custom fields <span class="modal-hint" style="margin:0;">選填</span></label>
+          <div id="field-builder-list"></div>
+          <button type="button" class="btn-add-field" id="add-field-btn">＋ 新增欄位 Add field</button>
+        </div>
+
+        <p class="modal-error" id="ne-error"></p>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="ne-cancel-btn">取消</button>
+          <button type="submit" class="btn-primary" id="ne-submit-btn">建立活動 Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="manage-events-modal">
+    <div class="modal-box" style="max-width: 760px;">
+      <h2>管理活動 Manage Events</h2>
+      <p class="modal-sub">編輯活動內容、暫停報名，或永久刪除活動。</p>
+
+      <div class="table-wrap" style="margin-bottom: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>活動名稱</th><th>日期</th><th>狀態</th><th>LINE 連結</th><th style="text-align:right;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="manage-events-list"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="manage-events-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" id="content-area">
+    <!-- filled in by JS: either the table view, or a "no access" message -->
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG — replace before deploying
+   ========================================================= */
+const SUPABASE_URL = 'https://ixzvbyxhzttvnheivsoc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4enZieXhoenR0dm5oZWl2c29jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyMTUxNzEsImV4cCI6MjEwNDc5MTE3MX0.IbPkpX8fepK4o3yDXHOGH0UXt1n3-17YXdcv36LxJuU';
+const CREATE_LIFF_FUNCTION_URL = 'https://ixzvbyxhzttvnheivsoc.functions.supabase.co/create-liff-app';
+/* ========================================================= */
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const loginScreen = document.getElementById('login-screen');
+const dashboardScreen = document.getElementById('dashboard-screen');
+const eventSelect = document.getElementById('event-select');
+const contentArea = document.getElementById('content-area');
+const searchInput_placeholder = null; // search input is created dynamically per render
+
+let myRoles = [];        // [{ role, event_id }]
+let isSuperAdmin = false;
+let currentEventId = null;
+let currentEventRole = null; // 'super_admin' | 'organizer' | 'staff'
+let currentEventName = '';
+let currentEventFormSchema = [];
+let allEvents = [];
+let allRegistrants = [];
+let realtimeChannel = null;
+let searchQuery = '';
+
+const STATUS_LABELS = {
+  pending: '待確認', confirmed: '已確認', checked_in: '已報到', cancelled: '已取消',
+};
+const ROLE_LABELS = {
+  super_admin: 'Super Admin', organizer: 'Organizer', staff: 'Check-in Staff',
+};
+
+/* ---------- Auth ---------- */
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  const errorEl = document.getElementById('login-error');
+
+  btn.disabled = true; btn.textContent = '登入中…'; errorEl.style.display = 'none';
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    errorEl.textContent = '登入失敗：' + error.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = '登入 Log in';
+    return;
+  }
+
+  document.getElementById('admin-email-label').textContent = data.user.email;
+  await enterDashboard();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+  await supabaseClient.auth.signOut();
+  loginScreen.style.display = 'flex';
+  dashboardScreen.style.display = 'none';
+});
+
+async function checkExistingSession() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    document.getElementById('admin-email-label').textContent = session.user.email;
+    await enterDashboard();
+  }
+}
+
+/* ---------- Roles & events ---------- */
+
+async function enterDashboard() {
+  loginScreen.style.display = 'none';
+  dashboardScreen.style.display = 'block';
+
+  const { data: roles, error } = await supabaseClient.from('admin_roles').select('role, event_id');
+  if (error) {
+    contentArea.innerHTML = `<div class="no-access"><div class="big">無法載入權限資料</div><div>${error.message}</div></div>`;
+    return;
+  }
+
+  myRoles = roles || [];
+  isSuperAdmin = myRoles.some(r => r.role === 'super_admin');
+  document.getElementById('new-event-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-events-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+
+  if (myRoles.length === 0) {
+    contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
+    eventSelect.innerHTML = '<option>—</option>';
+    return;
+  }
+
+  await loadEvents();
+}
+
+async function loadEvents() {
+  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id').order('event_date', { ascending: false });
+
+  if (!isSuperAdmin) {
+    const eventIds = myRoles.map(r => r.event_id).filter(Boolean);
+    if (eventIds.length === 0) {
+      eventSelect.innerHTML = '<option>尚未指派活動</option>';
+      return;
+    }
+    query = query.in('id', eventIds);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data || data.length === 0) {
+    eventSelect.innerHTML = '<option>尚未有可管理的活動</option>';
+    return;
+  }
+
+  allEvents = data;
+  eventSelect.innerHTML = data.map(ev => `<option value="${ev.id}">${escapeHtml(ev.name)}</option>`).join('');
+  selectEvent(data[0].id);
+}
+
+eventSelect.addEventListener('change', () => selectEvent(eventSelect.value));
+
+function selectEvent(eventId) {
+  currentEventId = eventId;
+  currentEventRole = isSuperAdmin
+    ? 'super_admin'
+    : (myRoles.find(r => r.event_id === eventId)?.role || null);
+
+  const eventRow = allEvents.find(e => e.id === eventId);
+  currentEventName = eventRow ? eventRow.name : '活動';
+  currentEventFormSchema = (eventRow && eventRow.form_schema) || [];
+
+  document.getElementById('role-badge').textContent = ROLE_LABELS[currentEventRole] || '';
+  document.getElementById('role-badge').className = 'role-badge ' + currentEventRole;
+
+  renderShell();
+  loadRegistrants();
+  subscribeRealtime();
+}
+
+/* ---------- Content shell (stats + toolbar + table) ---------- */
+
+function renderShell() {
+  const staffNote = currentEventRole === 'staff'
+    ? `<div class="staff-note">您目前是 Check-in Staff — 只能查看資料並更新報到狀態，無法編輯個人資料。</div>`
+    : '';
+
+  contentArea.innerHTML = `
+    ${staffNote}
+    <div class="stats">
+      <div class="stat"><div class="num" id="stat-total">–</div><div class="label">總報名人數 Total</div></div>
+      <div class="stat pending"><div class="num" id="stat-pending">–</div><div class="label">待確認 Pending</div></div>
+      <div class="stat confirmed"><div class="num" id="stat-confirmed">–</div><div class="label">已確認 Confirmed</div></div>
+      <div class="stat checked_in"><div class="num" id="stat-checked-in">–</div><div class="label">已報到 Checked in</div></div>
+    </div>
+    <div class="toolbar">
+      <input type="text" id="search-input" placeholder="搜尋姓名或電話 Search name or phone…">
+      <div class="refresh-note"><span class="live-dot"></span> 即時同步 Live</div>
+      <button class="btn-new-event" id="export-csv-btn" style="background:var(--accent-dark);">匯出 CSV Export</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>姓名 Name</th><th>電話 Phone</th>${currentEventFormSchema.map(f => `<th>${escapeHtml(f.label)}</th>`).join('')}<th>備註 Notes</th><th>報名時間 Registered</th><th>狀態 Status</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div class="empty-state" id="empty-state" style="display:none;">
+        <div class="big">目前沒有符合的報名資料</div>
+        <div>No registrants match this event or search yet.</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    searchQuery = e.target.value.trim().toLowerCase();
+    renderTable();
+  });
+
+  document.getElementById('export-csv-btn').addEventListener('click', exportCsv);
+}
+
+/* ---------- CSV Export ---------- */
+
+function csvEscape(value) {
+  const s = (value === null || value === undefined) ? '' : String(value);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function exportCsv() {
+  if (allRegistrants.length === 0) {
+    alert('目前沒有可匯出的報名資料。');
+    return;
+  }
+
+  const customCols = currentEventFormSchema.map(f => f.label);
+  const headers = ['姓名', '電話', ...customCols, '備註', '狀態', '報名時間'];
+
+  const rows = allRegistrants.map(r => {
+    const u = r.users || {};
+    const extra = r.extra_data || {};
+    const customValues = currentEventFormSchema.map(f => extra[f.id] || '');
+    return [
+      u.display_name || '',
+      u.phone || '',
+      ...customValues,
+      r.notes || '',
+      STATUS_LABELS[r.status] || r.status,
+      formatDate(r.created_at),
+    ];
+  });
+
+  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
+  const csvContent = csvLines.join('\r\n');
+
+  // Prepend a UTF-8 BOM so Excel correctly detects the encoding and
+  // displays Chinese characters properly instead of garbled text.
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeEventName = (currentEventName || 'event').replace(/[\\/:*?"<>|]/g, '_');
+  a.href = url;
+  a.download = `${safeEventName}_報名名單_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------- Registrants ---------- */
+
+async function loadRegistrants() {
+  if (!currentEventId) return;
+
+  // Join users so we can show name/phone/email/photo alongside each registration.
+  const { data, error } = await supabaseClient
+    .from('registrations')
+    .select('id, status, notes, extra_data, created_at, event_id, users ( display_name, phone, line_picture_url )')
+    .eq('event_id', currentEventId)
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error(error); return; }
+
+  allRegistrants = data || [];
+  renderTable();
+}
+
+function renderTable() {
+  const tableBody = document.getElementById('table-body');
+  const emptyState = document.getElementById('empty-state');
+  if (!tableBody) return;
+
+  const filtered = allRegistrants.filter(r => {
+    if (!searchQuery) return true;
+    const u = r.users || {};
+    return (u.display_name || '').toLowerCase().includes(searchQuery) ||
+           (u.phone || '').includes(searchQuery);
+  });
+
+  document.getElementById('stat-total').textContent = allRegistrants.length;
+  document.getElementById('stat-pending').textContent = allRegistrants.filter(r => r.status === 'pending').length;
+  document.getElementById('stat-confirmed').textContent = allRegistrants.filter(r => r.status === 'confirmed').length;
+  document.getElementById('stat-checked-in').textContent = allRegistrants.filter(r => r.status === 'checked_in').length;
+
+  if (filtered.length === 0) {
+    tableBody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+  emptyState.style.display = 'none';
+
+  const canEditFully = currentEventRole === 'super_admin' || currentEventRole === 'organizer';
+
+  tableBody.innerHTML = filtered.map(r => {
+    const u = r.users || {};
+    const extra = r.extra_data || {};
+    const fieldCells = currentEventFormSchema.map(f => {
+      const val = extra[f.id];
+      return `<td class="notes-cell" title="${escapeHtml(val || '')}">${escapeHtml(val || '—')}</td>`;
+    }).join('');
+    return `
+      <tr data-id="${r.id}">
+        <td>
+          <div class="name-cell">
+            <img src="${u.line_picture_url || ''}" alt="">
+            <span class="name-text">${escapeHtml(u.display_name || '—')}</span>
+          </div>
+        </td>
+        <td>${escapeHtml(u.phone || '—')}</td>
+        ${fieldCells}
+        <td class="notes-cell" title="${escapeHtml(r.notes || '')}">${escapeHtml(r.notes || '—')}</td>
+        <td>${formatDate(r.created_at)}</td>
+        <td>
+          <select class="status-select ${r.status}" data-id="${r.id}">
+            ${Object.entries(STATUS_LABELS).map(([val, label]) =>
+              `<option value="${val}" ${r.status === val ? 'selected' : ''}>${label}</option>`
+            ).join('')}
+          </select>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Staff and organizers/super admins can both change status —
+  // that's allowed for all three roles per the RLS policies.
+  tableBody.querySelectorAll('.status-select').forEach(sel => {
+    sel.addEventListener('change', onStatusChange);
+  });
+}
+
+async function onStatusChange(e) {
+  const id = e.target.dataset.id;
+  const newStatus = e.target.value;
+  e.target.className = 'status-select ' + newStatus;
+
+  const { error } = await supabaseClient.from('registrations').update({ status: newStatus }).eq('id', id);
+
+  if (error) {
+    alert('更新失敗，請重試。\n' + error.message);
+    loadRegistrants();
+    return;
+  }
+
+  const local = allRegistrants.find(r => r.id === id);
+  if (local) local.status = newStatus;
+  renderTable();
+}
+
+/* ---------- Realtime ---------- */
+
+function subscribeRealtime() {
+  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+
+  realtimeChannel = supabaseClient
+    .channel('registrations-changes-' + currentEventId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'registrations', filter: `event_id=eq.${currentEventId}` },
+      () => loadRegistrants()
+    )
+    .subscribe();
+}
+
+/* ---------- Helpers ---------- */
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }) + ' ' +
+         d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/* ---------- New Event creation (Super Admin only) ---------- */
+
+let fieldBuilderCount = 0;
+
+function addFieldBuilderRow(prefill) {
+  const id = 'fb-' + (fieldBuilderCount++);
+  const isRequired = !!(prefill && prefill.required);
+  const wrap = document.createElement('div');
+  wrap.className = 'field-builder-item';
+  wrap.dataset.rowId = id;
+  wrap.dataset.required = isRequired ? '1' : '0';
+
+  wrap.innerHTML = `
+    <div class="fb-row1">
+      <input type="text" class="fb-label" placeholder="欄位名稱 (例: 佛堂)" value="${prefill ? escapeHtml(prefill.label || '') : ''}">
+      <select class="fb-type">
+        <option value="select" ${prefill && prefill.type === 'select' ? 'selected' : ''}>下拉選單</option>
+        <option value="toggle" ${prefill && prefill.type === 'toggle' ? 'selected' : ''}>按鈕 (兩選一)</option>
+        <option value="text" ${prefill && prefill.type === 'text' ? 'selected' : ''}>文字輸入</option>
+      </select>
+      <button type="button" class="remove-field-btn">✕</button>
+    </div>
+    <div class="fb-row2">
+      <input type="text" class="fb-options" placeholder="選項，用逗號分隔 (例: 培賢,妙覺,崇義)" value="${prefill && prefill.type === 'select' && prefill.options ? escapeHtml(prefill.options.join(',')) : ''}">
+      <select class="fb-toggle-preset">
+        <option value="需要,不需要">需要 / 不需要</option>
+        <option value="是,否">是 / 否</option>
+      </select>
+    </div>
+    <button type="button" class="fb-required-toggle ${isRequired ? 'is-required' : ''}">${isRequired ? '必填' : '選填'}</button>
+  `;
+  document.getElementById('field-builder-list').appendChild(wrap);
+
+  const typeSelect = wrap.querySelector('.fb-type');
+  const optionsInput = wrap.querySelector('.fb-options');
+  const togglePreset = wrap.querySelector('.fb-toggle-preset');
+
+  // Pre-select the matching toggle preset if editing an existing toggle field
+  if (prefill && prefill.type === 'toggle' && prefill.options) {
+    const joined = prefill.options.join(',');
+    if ([...togglePreset.options].some(o => o.value === joined)) togglePreset.value = joined;
+  }
+
+  function syncFieldTypeUI() {
+    const type = typeSelect.value;
+    optionsInput.style.display = type === 'select' ? 'block' : 'none';
+    togglePreset.style.display = type === 'toggle' ? 'block' : 'none';
+  }
+  typeSelect.addEventListener('change', syncFieldTypeUI);
+  syncFieldTypeUI();
+
+  wrap.querySelector('.remove-field-btn').addEventListener('click', () => wrap.remove());
+
+  const requiredBtn = wrap.querySelector('.fb-required-toggle');
+  requiredBtn.addEventListener('click', () => {
+    const nowRequired = wrap.dataset.required !== '1';
+    wrap.dataset.required = nowRequired ? '1' : '0';
+    requiredBtn.textContent = nowRequired ? '必填' : '選填';
+    requiredBtn.classList.toggle('is-required', nowRequired);
+  });
+}
+
+document.getElementById('add-field-btn').addEventListener('click', () => addFieldBuilderRow());
+
+document.getElementById('new-event-btn').addEventListener('click', () => openEventModal(null));
+
+function openEventModal(eventToEdit) {
+  document.getElementById('new-event-form').reset();
+  document.getElementById('field-builder-list').innerHTML = '';
+  document.getElementById('ne-error').style.display = 'none';
+  document.getElementById('ne-slug').removeAttribute('data-touched');
+
+  if (eventToEdit) {
+    document.getElementById('ne-modal-title').textContent = '編輯活動 Edit Event';
+    document.getElementById('ne-submit-btn').textContent = '儲存變更 Save';
+    document.getElementById('ne-editing-id').value = eventToEdit.id;
+    document.getElementById('ne-name').value = eventToEdit.name || '';
+    document.getElementById('ne-description').value = eventToEdit.description || '';
+    document.getElementById('ne-date').value = eventToEdit.event_date || '';
+    document.getElementById('ne-location').value = eventToEdit.location || '';
+    const slugField = document.getElementById('ne-slug');
+    slugField.value = eventToEdit.slug || '';
+    slugField.disabled = true;
+    slugField.dataset.touched = '1';
+    document.getElementById('ne-slug-lock-note').style.display = 'block';
+
+    const schema = eventToEdit.form_schema || [];
+    if (schema.length === 0) {
+      addFieldBuilderRow({ label: '', type: 'select' });
+    } else {
+      schema.forEach(f => addFieldBuilderRow(f));
+    }
+  } else {
+    document.getElementById('ne-modal-title').textContent = '新增活動 New Event';
+    document.getElementById('ne-submit-btn').textContent = '建立活動 Create';
+    document.getElementById('ne-editing-id').value = '';
+    document.getElementById('ne-slug').disabled = false;
+    document.getElementById('ne-slug-lock-note').style.display = 'none';
+    addFieldBuilderRow({ label: '', type: 'select' });
+  }
+
+  document.getElementById('new-event-modal').classList.add('show');
+}
+
+document.getElementById('ne-cancel-btn').addEventListener('click', () => {
+  document.getElementById('new-event-modal').classList.remove('show');
+});
+
+// Auto-suggest a slug from the event name (best-effort; admin can always edit it)
+document.getElementById('ne-name').addEventListener('input', (e) => {
+  const slugField = document.getElementById('ne-slug');
+  if (slugField.dataset.touched) return; // don't override if admin already typed their own
+  const base = e.target.value
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fff]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  slugField.value = base.slice(0, 40);
+});
+document.getElementById('ne-slug').addEventListener('input', (e) => { e.target.dataset.touched = '1'; });
+
+document.getElementById('new-event-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('ne-error');
+  errorEl.style.display = 'none';
+
+  const name = document.getElementById('ne-name').value.trim();
+  const description = document.getElementById('ne-description').value.trim() || null;
+  const date = document.getElementById('ne-date').value || null;
+  const location = document.getElementById('ne-location').value.trim() || null;
+  const slug = document.getElementById('ne-slug').value.trim();
+
+  if (!name || !slug) {
+    errorEl.textContent = '請填寫活動名稱與連結代碼。';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    errorEl.textContent = '連結代碼只能使用小寫英文、數字與連字號(-)。';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const formSchema = [];
+  document.querySelectorAll('#field-builder-list .field-builder-item').forEach(row => {
+    const label = row.querySelector('.fb-label').value.trim();
+    if (!label) return;
+    const type = row.querySelector('.fb-type').value;
+    const required = row.dataset.required === '1';
+    const fieldId = label.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '_').replace(/^_+|_+$/g, '') || ('field_' + formSchema.length);
+    const field = { id: fieldId, label, type, required };
+    if (type === 'select') {
+      const opts = row.querySelector('.fb-options').value.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.length === 0) return; // skip incomplete select fields rather than erroring
+      field.options = opts;
+    }
+    if (type === 'toggle') {
+      field.options = row.querySelector('.fb-toggle-preset').value.split(',');
+    }
+    formSchema.push(field);
+  });
+
+  const submitBtn = document.getElementById('ne-submit-btn');
+  const editingId = document.getElementById('ne-editing-id').value;
+  submitBtn.disabled = true;
+
+  if (editingId) {
+    submitBtn.textContent = '儲存中…';
+    const { error: updateErr } = await supabaseClient
+      .from('events')
+      .update({ name, event_date: date, location, description, form_schema: formSchema })
+      .eq('id', editingId);
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = '儲存變更 Save';
+
+    if (updateErr) {
+      errorEl.textContent = '儲存失敗：' + updateErr.message;
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    document.getElementById('new-event-modal').classList.remove('show');
+    await loadEvents();
+    eventSelect.value = editingId;
+    selectEvent(editingId);
+    if (document.getElementById('manage-events-modal').classList.contains('show')) renderManageEventsList();
+    return;
+  }
+
+  submitBtn.textContent = '建立中…';
+
+  const { data, error } = await supabaseClient
+    .from('events')
+    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema })
+    .select()
+    .single();
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = '建立活動 Create';
+
+  if (error) {
+    errorEl.textContent = error.message.includes('duplicate')
+      ? '此連結代碼已被使用，請換一個。'
+      : '建立失敗：' + error.message;
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('new-event-modal').classList.remove('show');
+  await loadEvents();
+  eventSelect.value = data.id;
+  selectEvent(data.id);
+
+  submitBtn.textContent = '建立專屬 LINE 連結中…';
+  const result = await createLiffForEvent(data.id, slug, name);
+  if (result.ok) {
+    alert('活動已建立！專屬報名連結為：\n' + result.liffLink);
+    await loadEvents();
+  } else {
+    alert('活動已建立，但自動建立專屬 LINE 連結失敗：\n' + result.error +
+      '\n\n您可以稍後在「管理活動」中點擊「重新產生連結」再試一次。');
+  }
+});
+
+async function createLiffForEvent(eventId, slug, name) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const res = await fetch(CREATE_LIFF_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token, event_id: eventId, slug, name }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || '建立 LIFF 連結失敗');
+    return { ok: true, liffLink: result.liffLink, liffId: result.liffId };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/* ---------- Manage Events panel (Super Admin only) ---------- */
+
+document.getElementById('manage-events-btn').addEventListener('click', () => {
+  renderManageEventsList();
+  document.getElementById('manage-events-modal').classList.add('show');
+});
+
+document.getElementById('manage-events-close-btn').addEventListener('click', () => {
+  document.getElementById('manage-events-modal').classList.remove('show');
+});
+
+function isValidLiffId(liffId) {
+  return !!liffId && /^\d+-[A-Za-z0-9]+$/.test(liffId);
+}
+
+function renderManageEventsList() {
+  const tbody = document.getElementById('manage-events-list');
+  if (!allEvents || allEvents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--ink-soft);">尚無活動</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allEvents.map(ev => `
+    <tr data-event-id="${ev.id}">
+      <td><strong>${escapeHtml(ev.name)}</strong></td>
+      <td>${ev.event_date || '—'}</td>
+      <td>
+        <span class="status-select ${ev.is_active ? 'confirmed' : 'cancelled'}" style="cursor:default;">
+          ${ev.is_active ? '啟用中' : '已停用'}
+        </span>
+      </td>
+      <td>
+        ${isValidLiffId(ev.liff_id)
+          ? `<button type="button" class="btn-text me-copy-link-btn">複製連結</button>`
+          : `<button type="button" class="btn-text me-regen-liff-btn" style="color:var(--amber);">重新產生連結</button>`}
+      </td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button type="button" class="btn-text me-edit-btn">編輯</button>
+        <button type="button" class="btn-text me-toggle-btn">${ev.is_active ? '停用' : '啟用'}</button>
+        <button type="button" class="btn-text me-delete-btn" style="color:var(--red);">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.me-copy-link-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      const link = 'https://liff.line.me/' + ev.liff_id;
+      try {
+        await navigator.clipboard.writeText(link);
+        btn.textContent = '已複製！';
+        setTimeout(() => { btn.textContent = '複製連結'; }, 1500);
+      } catch (err) {
+        prompt('複製失敗，請手動複製以下連結：', link);
+      }
+    });
+  });
+
+  tbody.querySelectorAll('.me-regen-liff-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      btn.textContent = '產生中…';
+      btn.disabled = true;
+      const result = await createLiffForEvent(ev.id, ev.slug, ev.name);
+      if (result.ok) {
+        alert('已產生專屬報名連結：\n' + result.liffLink);
+        await loadEvents();
+        renderManageEventsList();
+      } else {
+        alert('產生失敗：' + result.error);
+        btn.textContent = '重新產生連結';
+        btn.disabled = false;
+      }
+    });
+  });
+
+  tbody.querySelectorAll('.me-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      document.getElementById('manage-events-modal').classList.remove('show');
+      openEventModal(ev);
+    });
+  });
+
+  tbody.querySelectorAll('.me-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      const newState = !ev.is_active;
+      const { error } = await supabaseClient.from('events').update({ is_active: newState }).eq('id', eventId);
+      if (error) { alert('更新失敗：' + error.message); return; }
+      await loadEvents();
+      renderManageEventsList();
+    });
+  });
+
+  tbody.querySelectorAll('.me-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      const confirmed = confirm(
+        `確定要永久刪除「${ev.name}」嗎？\n\n這會一併刪除此活動所有報名者的資料，且無法復原。\n建議改用「停用」以保留歷史紀錄。`
+      );
+      if (!confirmed) return;
+
+      const { error } = await supabaseClient.from('events').delete().eq('id', eventId);
+      if (error) { alert('刪除失敗：' + error.message); return; }
+
+      await loadEvents();
+      renderManageEventsList();
+    });
+  });
+}
+
+checkExistingSession();
+</script>
+
+</body>
+</html>
