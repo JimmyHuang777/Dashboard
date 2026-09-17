@@ -248,6 +248,45 @@
     .table-wrap { overflow-x: auto; }
     table { min-width: 640px; }
   }
+
+  /* ---- Task subtask builder ---- */
+  .subtask-builder-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .subtask-builder-row input {
+    flex: 1; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: var(--paper);
+  }
+  .subtask-builder-row .remove-field-btn {
+    background: var(--red-bg); color: var(--red); border: none; border-radius: 6px;
+    width: 28px; height: 32px; cursor: pointer; font-size: 15px; flex-shrink: 0;
+  }
+
+  /* ---- Task Upcoming: view toggle + calendar ---- */
+  .upcoming-view-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .upcoming-progress { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+  .upcoming-place { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  .admin-cal-wrap { display: none; }
+  .admin-cal-wrap.active { display: block; }
+  .admin-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .admin-cal-nav button {
+    width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--paper);
+    font-size: 15px; cursor: pointer; color: var(--ink);
+  }
+  .admin-cal-nav .admin-cal-month-label { font-size: 14.5px; font-weight: 700; }
+  .admin-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 18px; }
+  .admin-cal-dow { text-align: center; font-size: 11px; color: var(--ink-soft); padding: 4px 0; font-weight: 600; }
+  .admin-cal-day {
+    aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 12.5px; cursor: pointer; background: var(--canvas);
+    color: var(--ink); border: 1.5px solid transparent;
+  }
+  .admin-cal-day.empty { background: none; cursor: default; }
+  .admin-cal-day.today { border-color: var(--blue); }
+  .admin-cal-day.selected { background: var(--blue); color: white; }
+  .admin-cal-day .admin-cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); margin-top: 2px; }
+  .admin-cal-day.selected .admin-cal-dot { background: white; }
+  .admin-cal-day.full-dot .admin-cal-dot { background: var(--accent-dark); }
+  .admin-cal-day.selected.full-dot .admin-cal-dot { background: white; }
 </style>
 </head>
 <body>
@@ -402,6 +441,7 @@
                 <option value="daily">每日 Daily</option>
                 <option value="weekly">每週 Weekly</option>
                 <option value="monthly">每月 Monthly</option>
+                <option value="once">單次 One-time (non-routine)</option>
               </select>
             </div>
             <div class="modal-field">
@@ -425,6 +465,29 @@
             <label>每月幾號 Day of month</label>
             <input type="number" id="tpl-day-of-month" min="1" max="31" value="1">
           </div>
+          <div class="modal-field">
+            <label>地點 Place <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="tpl-place" placeholder="例：大殿 Main hall">
+          </div>
+          <div class="modal-field" id="tpl-once-date-field" style="display:none;">
+            <label>日期 Date <span class="modal-hint" style="margin:0;">此工作只會在這一天出現一次</span></label>
+            <input type="date" id="tpl-once-date">
+          </div>
+          <div class="field-row" id="tpl-date-range-row">
+            <div class="modal-field">
+              <label>開始日期 Start date <span class="modal-hint" style="margin:0;">選填，留空表示現在就開始</span></label>
+              <input type="date" id="tpl-start-date">
+            </div>
+            <div class="modal-field">
+              <label>結束日期 End date <span class="modal-hint" style="margin:0;">選填，留空表示不設期限</span></label>
+              <input type="date" id="tpl-end-date">
+            </div>
+          </div>
+          <div class="modal-field">
+            <label>子項目清單 Subtasks <span class="modal-hint" style="margin:0;">選填，認領者可在每次執行時勾選完成</span></label>
+            <div id="subtask-builder-list"></div>
+            <button type="button" class="btn-add-field" id="add-subtask-btn">＋ 新增子項目 Add subtask</button>
+          </div>
           <p class="modal-error" id="tpl-error"></p>
           <div class="modal-actions">
             <button type="button" class="btn-cancel" id="tpl-cancel-btn">取消</button>
@@ -434,6 +497,18 @@
       </div>
 
       <div id="tasks-upcoming-pane" style="display:none;">
+        <div class="upcoming-view-toggle">
+          <button type="button" class="tabs-row-btn active" id="upcoming-view-list-btn">列表 List</button>
+          <button type="button" class="tabs-row-btn" id="upcoming-view-cal-btn">月曆 Calendar</button>
+        </div>
+        <div class="admin-cal-wrap" id="admin-cal-wrap">
+          <div class="admin-cal-nav">
+            <button type="button" id="admin-cal-prev-btn">‹</button>
+            <span class="admin-cal-month-label" id="admin-cal-month-label"></span>
+            <button type="button" id="admin-cal-next-btn">›</button>
+          </div>
+          <div class="admin-cal-grid" id="admin-cal-grid"></div>
+        </div>
         <div id="upcoming-list"></div>
       </div>
 
@@ -1218,6 +1293,10 @@ function renderManageEventsList() {
 let taskTemplates = [];
 let upcomingTasks = [];
 let assignPendingInstanceId = null;
+let subtaskBuilderCount = 0;
+let upcomingView = 'list'; // 'list' | 'calendar'
+let adminCalCursor = new Date();
+let adminCalSelectedDate = null;
 
 document.getElementById('manage-tasks-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.add('show');
@@ -1287,7 +1366,7 @@ async function loadTaskTemplates() {
   renderTaskTemplates();
 }
 
-const RECURRENCE_LABELS = { daily: '每日 Daily', weekly: '每週 Weekly', monthly: '每月 Monthly' };
+const RECURRENCE_LABELS = { daily: '每日 Daily', weekly: '每週 Weekly', monthly: '每月 Monthly', once: '單次 One-time' };
 
 function renderTaskTemplates() {
   const tbody = document.getElementById('task-templates-list');
@@ -1342,7 +1421,25 @@ function renderTaskTemplates() {
 
 document.getElementById('new-template-btn').addEventListener('click', () => openTemplateForm(null));
 
-function openTemplateForm(tpl) {
+/* ---------- Subtask builder (inside the template form) ---------- */
+
+function addSubtaskBuilderRow(prefill) {
+  const id = 'sb-' + (subtaskBuilderCount++);
+  const wrap = document.createElement('div');
+  wrap.className = 'subtask-builder-row';
+  wrap.dataset.rowId = id;
+  wrap.dataset.subtaskId = (prefill && prefill.id) || ''; // existing row's DB id, blank if new
+  wrap.innerHTML = `
+    <input type="text" class="sb-title" placeholder="例：關閉電燈" value="${prefill ? escapeHtml(prefill.title || '') : ''}">
+    <button type="button" class="remove-field-btn">✕</button>
+  `;
+  document.getElementById('subtask-builder-list').appendChild(wrap);
+  wrap.querySelector('.remove-field-btn').addEventListener('click', () => wrap.remove());
+}
+
+document.getElementById('add-subtask-btn').addEventListener('click', () => addSubtaskBuilderRow());
+
+async function openTemplateForm(tpl) {
   document.getElementById('template-form').style.display = 'block';
   document.getElementById('tpl-error').style.display = 'none';
   document.getElementById('tpl-editing-id').value = tpl ? tpl.id : '';
@@ -1350,10 +1447,24 @@ function openTemplateForm(tpl) {
   document.getElementById('tpl-description').value = tpl ? (tpl.description || '') : '';
   document.getElementById('tpl-recurrence').value = tpl ? tpl.recurrence : 'daily';
   document.getElementById('tpl-slots').value = tpl ? tpl.slots_per_instance : 1;
+  document.getElementById('tpl-place').value = tpl ? (tpl.place || '') : '';
+  document.getElementById('tpl-start-date').value = (tpl && tpl.recurrence !== 'once') ? (tpl.start_date || '') : '';
+  document.getElementById('tpl-end-date').value = (tpl && tpl.recurrence !== 'once') ? (tpl.end_date || '') : '';
+  document.getElementById('tpl-once-date').value = (tpl && tpl.recurrence === 'once') ? (tpl.start_date || '') : '';
   const detail = (tpl && tpl.recurrence_detail) || {};
   document.getElementById('tpl-day-of-week').value = detail.day_of_week ?? '0';
   document.getElementById('tpl-day-of-month').value = detail.day_of_month ?? '1';
   syncRecurrenceFieldVisibility();
+
+  document.getElementById('subtask-builder-list').innerHTML = '';
+  if (tpl) {
+    const { data: subs } = await supabaseClient
+      .from('task_subtask_templates')
+      .select('id, title, sort_order')
+      .eq('template_id', tpl.id)
+      .order('sort_order', { ascending: true });
+    (subs || []).forEach(s => addSubtaskBuilderRow(s));
+  }
 }
 
 document.getElementById('tpl-recurrence').addEventListener('change', syncRecurrenceFieldVisibility);
@@ -1361,6 +1472,8 @@ function syncRecurrenceFieldVisibility() {
   const rec = document.getElementById('tpl-recurrence').value;
   document.getElementById('tpl-weekly-field').style.display = rec === 'weekly' ? 'block' : 'none';
   document.getElementById('tpl-monthly-field').style.display = rec === 'monthly' ? 'block' : 'none';
+  document.getElementById('tpl-once-date-field').style.display = rec === 'once' ? 'block' : 'none';
+  document.getElementById('tpl-date-range-row').style.display = rec === 'once' ? 'none' : 'grid';
 }
 
 document.getElementById('tpl-cancel-btn').addEventListener('click', () => {
@@ -1386,24 +1499,102 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   if (recurrence === 'weekly') recurrence_detail = { day_of_week: parseInt(document.getElementById('tpl-day-of-week').value, 10) };
   if (recurrence === 'monthly') recurrence_detail = { day_of_month: parseInt(document.getElementById('tpl-day-of-month').value, 10) };
 
-  const editingId = document.getElementById('tpl-editing-id').value;
-  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots };
-
-  const { error } = editingId
-    ? await supabaseClient.from('task_templates').update(payload).eq('id', editingId)
-    : await supabaseClient.from('task_templates').insert(payload);
-
-  if (error) {
-    errorEl.textContent = '儲存失敗：' + error.message;
-    errorEl.style.display = 'block';
-    return;
+  const place = document.getElementById('tpl-place').value.trim() || null;
+  let start_date, end_date;
+  if (recurrence === 'once') {
+    const onceDate = document.getElementById('tpl-once-date').value || null;
+    if (!onceDate) {
+      errorEl.textContent = '請選擇單次工作的日期。';
+      errorEl.style.display = 'block';
+      return;
+    }
+    start_date = onceDate;
+    end_date = onceDate;
+  } else {
+    start_date = document.getElementById('tpl-start-date').value || null;
+    end_date = document.getElementById('tpl-end-date').value || null;
+    if (start_date && end_date && start_date > end_date) {
+      errorEl.textContent = '開始日期不能晚於結束日期。';
+      errorEl.style.display = 'block';
+      return;
+    }
   }
 
+  const editingId = document.getElementById('tpl-editing-id').value;
+  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date };
+
+  const submitBtn = document.getElementById('tpl-submit-btn');
+  submitBtn.disabled = true;
+
+  let templateId = editingId;
+  if (editingId) {
+    const { error } = await supabaseClient.from('task_templates').update(payload).eq('id', editingId);
+    if (error) {
+      submitBtn.disabled = false;
+      errorEl.textContent = '儲存失敗：' + error.message;
+      errorEl.style.display = 'block';
+      return;
+    }
+  } else {
+    const { data, error } = await supabaseClient.from('task_templates').insert(payload).select().single();
+    if (error) {
+      submitBtn.disabled = false;
+      errorEl.textContent = '儲存失敗：' + error.message;
+      errorEl.style.display = 'block';
+      return;
+    }
+    templateId = data.id;
+  }
+
+  // Sync the subtask checklist: update rows that already had a DB id,
+  // insert rows that are new, delete rows that were removed from the
+  // form. Preserving ids for untouched rows keeps their completion
+  // history intact instead of wiping it on every save.
+  const subtaskRows = [...document.querySelectorAll('#subtask-builder-list .subtask-builder-row')]
+    .map((row, idx) => ({
+      id: row.dataset.subtaskId || null,
+      title: row.querySelector('.sb-title').value.trim(),
+      sort_order: idx,
+    }))
+    .filter(r => r.title);
+
+  const { data: existingSubs } = await supabaseClient
+    .from('task_subtask_templates')
+    .select('id')
+    .eq('template_id', templateId);
+  const existingIds = (existingSubs || []).map(s => s.id);
+  const keptIds = subtaskRows.filter(r => r.id).map(r => r.id);
+  const toDelete = existingIds.filter(id => !keptIds.includes(id));
+
+  if (toDelete.length > 0) {
+    await supabaseClient.from('task_subtask_templates').delete().in('id', toDelete);
+  }
+  for (const row of subtaskRows) {
+    if (row.id) {
+      await supabaseClient.from('task_subtask_templates').update({ title: row.title, sort_order: row.sort_order }).eq('id', row.id);
+    } else {
+      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, sort_order: row.sort_order });
+    }
+  }
+
+  submitBtn.disabled = false;
   document.getElementById('template-form').style.display = 'none';
   await loadTaskTemplates();
 });
 
 /* ---------- Upcoming instances ---------- */
+
+document.getElementById('upcoming-view-list-btn').addEventListener('click', () => setUpcomingView('list'));
+document.getElementById('upcoming-view-cal-btn').addEventListener('click', () => setUpcomingView('calendar'));
+
+function setUpcomingView(view) {
+  upcomingView = view;
+  document.getElementById('upcoming-view-list-btn').classList.toggle('active', view === 'list');
+  document.getElementById('upcoming-view-cal-btn').classList.toggle('active', view === 'calendar');
+  document.getElementById('admin-cal-wrap').classList.toggle('active', view === 'calendar');
+  if (view === 'calendar') adminCalSelectedDate = null;
+  renderUpcomingTasks();
+}
 
 async function loadUpcomingTasks() {
   const listEl = document.getElementById('upcoming-list');
@@ -1411,14 +1602,14 @@ async function loadUpcomingTasks() {
 
   const from = new Date().toISOString().slice(0, 10);
   const toDate = new Date();
-  toDate.setDate(toDate.getDate() + 30);
+  toDate.setDate(toDate.getDate() + 60); // a bit more headroom for the calendar view
   const to = toDate.toISOString().slice(0, 10);
 
   await supabaseClient.rpc('ensure_task_instances', { p_from: from, p_to: to });
 
   const { data: instances, error: instErr } = await supabaseClient
     .from('task_instances')
-    .select('id, occurrence_date, template_id, task_templates ( title, slots_per_instance, is_active )')
+    .select('id, occurrence_date, template_id, task_templates ( title, place, slots_per_instance, is_active )')
     .gte('occurrence_date', from)
     .lte('occurrence_date', to)
     .order('occurrence_date', { ascending: true });
@@ -1427,8 +1618,12 @@ async function loadUpcomingTasks() {
 
   const activeInstances = (instances || []).filter(i => i.task_templates && i.task_templates.is_active);
   const instanceIds = activeInstances.map(i => i.id);
+  const templateIds = [...new Set(activeInstances.map(i => i.template_id))];
 
   let assignments = [];
+  let subtaskTemplates = [];
+  let subtaskCompletions = [];
+
   if (instanceIds.length > 0) {
     const { data: asg, error: asgErr } = await supabaseClient
       .from('task_assignments')
@@ -1437,21 +1632,97 @@ async function loadUpcomingTasks() {
       .neq('status', 'cancelled');
     if (asgErr) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(asgErr.message) + '</div>'; return; }
     assignments = asg || [];
+
+    const { data: comps } = await supabaseClient
+      .from('task_subtask_completions')
+      .select('id, subtask_template_id, instance_id')
+      .in('instance_id', instanceIds);
+    subtaskCompletions = comps || [];
+  }
+  if (templateIds.length > 0) {
+    const { data: subs } = await supabaseClient
+      .from('task_subtask_templates')
+      .select('id, template_id')
+      .in('template_id', templateIds);
+    subtaskTemplates = subs || [];
   }
 
-  upcomingTasks = activeInstances.map(inst => ({
-    instance_id: inst.id,
-    occurrence_date: inst.occurrence_date,
-    title: inst.task_templates.title,
-    slots_total: inst.task_templates.slots_per_instance,
-    assignments: assignments.filter(a => a.instance_id === inst.id),
-  }));
+  upcomingTasks = activeInstances.map(inst => {
+    const totalSubtasks = subtaskTemplates.filter(s => s.template_id === inst.template_id).length;
+    const doneSubtasks = subtaskCompletions.filter(c =>
+      c.instance_id === inst.id && subtaskTemplates.some(s => s.id === c.subtask_template_id && s.template_id === inst.template_id)
+    ).length;
+    return {
+      instance_id: inst.id,
+      occurrence_date: inst.occurrence_date,
+      title: inst.task_templates.title,
+      place: inst.task_templates.place || null,
+      slots_total: inst.task_templates.slots_per_instance,
+      assignments: assignments.filter(a => a.instance_id === inst.id),
+      subtasks_total: totalSubtasks,
+      subtasks_done: doneSubtasks,
+    };
+  });
 
   renderUpcomingTasks();
 }
 
+function upcomingCardHTML(t) {
+  const isFull = t.assignments.length >= t.slots_total;
+  const names = t.assignments.map(a =>
+    `${escapeHtml(a.users?.display_name || '—')}<button type="button" class="remove-assignment-btn" data-assignment-id="${a.id}">移除</button>`
+  ).join('　');
+  return `
+    <div class="upcoming-card" data-instance-id="${t.instance_id}" data-title="${escapeHtml(t.title)}">
+      <div class="upcoming-card-top">
+        <span class="upcoming-card-title">${escapeHtml(t.title)}</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="upcoming-card-slots ${isFull ? 'full' : ''}">${t.assignments.length} / ${t.slots_total} 人</span>
+          <button type="button" class="btn-text assign-btn">＋ 指派</button>
+        </div>
+      </div>
+      ${t.place ? `<div class="upcoming-place">📍 ${escapeHtml(t.place)}</div>` : ''}
+      ${names ? `<div class="upcoming-card-names">${names}</div>` : ''}
+      ${t.subtasks_total > 0 ? `<div class="upcoming-progress">子項目 Subtasks：${t.subtasks_done} / ${t.subtasks_total} 已完成</div>` : ''}
+    </div>`;
+}
+
+function bindUpcomingCardEvents(listEl) {
+  listEl.querySelectorAll('.assign-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.upcoming-card');
+      openAssignModal(card.dataset.instanceId, card.dataset.title);
+    });
+  });
+  listEl.querySelectorAll('.remove-assignment-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const assignmentId = e.target.dataset.assignmentId;
+      const { error } = await supabaseClient.from('task_assignments').update({ status: 'cancelled' }).eq('id', assignmentId);
+      if (error) { alert('移除失敗：' + error.message); return; }
+      await loadUpcomingTasks();
+    });
+  });
+}
+
 function renderUpcomingTasks() {
   const listEl = document.getElementById('upcoming-list');
+
+  if (upcomingView === 'calendar') {
+    renderAdminCalendar();
+    if (!adminCalSelectedDate) {
+      listEl.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px;">點選上方日期以查看該天的任務。</div>';
+      return;
+    }
+    const dayTasks = upcomingTasks.filter(t => t.occurrence_date === adminCalSelectedDate);
+    if (dayTasks.length === 0) {
+      listEl.innerHTML = `<div class="upcoming-date-heading">${adminCalSelectedDate}</div><div style="text-align:center; color:var(--ink-soft); padding:20px;">這天沒有排程中的任務。</div>`;
+      return;
+    }
+    listEl.innerHTML = `<div class="upcoming-date-heading">${adminCalSelectedDate}</div>${dayTasks.map(upcomingCardHTML).join('')}`;
+    bindUpcomingCardEvents(listEl);
+    return;
+  }
+
   if (upcomingTasks.length === 0) {
     listEl.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px;">近期沒有排程中的任務。</div>';
     return;
@@ -1465,37 +1736,63 @@ function renderUpcomingTasks() {
 
   listEl.innerHTML = Object.keys(byDate).sort().map(date => `
     <div class="upcoming-date-heading">${date}</div>
-    ${byDate[date].map(t => {
-      const isFull = t.assignments.length >= t.slots_total;
-      const names = t.assignments.map(a =>
-        `${escapeHtml(a.users?.display_name || '—')}<button type="button" class="remove-assignment-btn" data-assignment-id="${a.id}">移除</button>`
-      ).join('　');
-      return `
-        <div class="upcoming-card" data-instance-id="${t.instance_id}" data-title="${escapeHtml(t.title)}">
-          <div class="upcoming-card-top">
-            <span class="upcoming-card-title">${escapeHtml(t.title)}</span>
-            <div style="display:flex; align-items:center; gap:10px;">
-              <span class="upcoming-card-slots ${isFull ? 'full' : ''}">${t.assignments.length} / ${t.slots_total} 人</span>
-              <button type="button" class="btn-text assign-btn">＋ 指派</button>
-            </div>
-          </div>
-          ${names ? `<div class="upcoming-card-names">${names}</div>` : ''}
-        </div>`;
-    }).join('')}
+    ${byDate[date].map(upcomingCardHTML).join('')}
   `).join('');
 
-  listEl.querySelectorAll('.assign-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const card = e.target.closest('.upcoming-card');
-      openAssignModal(card.dataset.instanceId, card.dataset.title);
-    });
+  bindUpcomingCardEvents(listEl);
+}
+
+/* ---------- Upcoming: calendar sub-view ---------- */
+
+function adminMonthKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1); }
+function adminDaysInMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); }
+function adminToDateStr(y, m, day) { return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0'); }
+
+document.getElementById('admin-cal-prev-btn').addEventListener('click', () => {
+  adminCalCursor = new Date(adminCalCursor.getFullYear(), adminCalCursor.getMonth() - 1, 1);
+  adminCalSelectedDate = null;
+  renderUpcomingTasks();
+});
+document.getElementById('admin-cal-next-btn').addEventListener('click', () => {
+  adminCalCursor = new Date(adminCalCursor.getFullYear(), adminCalCursor.getMonth() + 1, 1);
+  adminCalSelectedDate = null;
+  renderUpcomingTasks();
+});
+
+function renderAdminCalendar() {
+  const y = adminCalCursor.getFullYear(), m = adminCalCursor.getMonth();
+  document.getElementById('admin-cal-month-label').textContent = adminCalCursor.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long' });
+
+  const firstDow = new Date(y, m, 1).getDay();
+  const totalDays = adminDaysInMonth(adminCalCursor);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const byDate = {};
+  upcomingTasks.forEach(t => {
+    if (!byDate[t.occurrence_date]) byDate[t.occurrence_date] = [];
+    byDate[t.occurrence_date].push(t);
   });
-  listEl.querySelectorAll('.remove-assignment-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const assignmentId = e.target.dataset.assignmentId;
-      const { error } = await supabaseClient.from('task_assignments').update({ status: 'cancelled' }).eq('id', assignmentId);
-      if (error) { alert('移除失敗：' + error.message); return; }
-      await loadUpcomingTasks();
+
+  const dowLabels = ['日','一','二','三','四','五','六'].map(d => `<div class="admin-cal-dow">${d}</div>`).join('');
+  const blanks = Array.from({ length: firstDow }, () => `<div class="admin-cal-day empty"></div>`).join('');
+  const cells = Array.from({ length: totalDays }, (_, i) => {
+    const day = i + 1;
+    const dateStr = adminToDateStr(y, m, day);
+    const dayTasks = byDate[dateStr] || [];
+    const allFull = dayTasks.length > 0 && dayTasks.every(t => t.assignments.length >= t.slots_total);
+    const classes = ['admin-cal-day'];
+    if (dateStr === todayStr) classes.push('today');
+    if (dateStr === adminCalSelectedDate) classes.push('selected');
+    if (allFull) classes.push('full-dot');
+    return `<div class="${classes.join(' ')}" data-date="${dateStr}">${day}${dayTasks.length ? '<span class="admin-cal-dot"></span>' : ''}</div>`;
+  }).join('');
+
+  document.getElementById('admin-cal-grid').innerHTML = dowLabels + blanks + cells;
+
+  document.querySelectorAll('#admin-cal-grid .admin-cal-day:not(.empty)').forEach(cell => {
+    cell.addEventListener('click', () => {
+      adminCalSelectedDate = cell.dataset.date === adminCalSelectedDate ? null : cell.dataset.date;
+      renderUpcomingTasks();
     });
   });
 }
