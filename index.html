@@ -135,6 +135,37 @@
 
   .admin-email { font-size: 13px; color: var(--ink-soft); }
 
+  .tabs-row { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tabs-row-btn {
+    padding: 8px 16px; border-radius: 20px; border: 1.5px solid var(--line); background: var(--paper);
+    color: var(--ink-soft); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .tabs-row-btn.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+
+  .upcoming-date-heading { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin: 16px 0 8px; }
+  .upcoming-date-heading:first-child { margin-top: 0; }
+  .upcoming-card {
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .upcoming-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .upcoming-card-title { font-size: 14px; font-weight: 700; }
+  .upcoming-card-slots { font-size: 12.5px; color: var(--ink-soft); }
+  .upcoming-card-slots.full { color: var(--accent-dark); font-weight: 600; }
+  .upcoming-card-names { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
+  .upcoming-card-names .remove-assignment-btn {
+    background: none; border: none; color: var(--red); font-size: 11.5px; text-decoration: underline;
+    cursor: pointer; margin-left: 6px; padding: 0;
+  }
+
+  .assign-result-row {
+    display: flex; align-items: center; justify-content: space-between; padding: 8px 4px;
+    border-bottom: 1px solid var(--line); font-size: 13.5px;
+  }
+  .assign-result-row button {
+    background: var(--ink); color: white; border: none; border-radius: 6px; padding: 6px 12px;
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+
   .btn-text {
     background: none; border: none; color: var(--ink-soft); font-size: 13px;
     cursor: pointer; padding: 6px 8px; text-decoration: underline;
@@ -249,6 +280,7 @@
     <div class="topbar-right">
       <button class="btn-new-event" id="new-event-btn" style="display:none;">+ 新增活動 New Event</button>
       <button class="btn-new-event" id="manage-events-btn" style="display:none; background:var(--ink-soft);">管理活動 Manage</button>
+      <button class="btn-new-event" id="manage-tasks-btn" style="display:none; background:var(--blue);">任務管理 Tasks</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -323,6 +355,105 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="manage-events-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="tasks-modal">
+    <div class="modal-box" style="max-width: 820px;">
+      <h2>任務管理 Task Management</h2>
+      <p class="modal-sub">建立每日／每週／每月的重複性工作，或手動指派人員。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">任務頁面的 LINE 連結 Task page LINE link</span>
+        <span id="tasks-liff-link-area"></span>
+      </div>
+
+      <div class="tabs-row" id="tasks-tabs">
+        <button type="button" class="tabs-row-btn active" data-tab="templates">工作範本 Templates</button>
+        <button type="button" class="tabs-row-btn" data-tab="upcoming">近期排程 Upcoming</button>
+      </div>
+
+      <div id="tasks-templates-pane">
+        <div class="table-wrap" style="margin-bottom: 14px;">
+          <table>
+            <thead>
+              <tr><th>名稱</th><th>頻率</th><th>需求人數</th><th>狀態</th><th style="text-align:right;">操作</th></tr>
+            </thead>
+            <tbody id="task-templates-list"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn-add-field" id="new-template-btn">＋ 新增工作範本 New Template</button>
+
+        <div id="template-form" style="display:none; border:1.5px solid var(--line); border-radius:10px; padding:16px; margin-top:14px;">
+          <input type="hidden" id="tpl-editing-id" value="">
+          <div class="modal-field">
+            <label>工作名稱 Title</label>
+            <input type="text" id="tpl-title" placeholder="例：打掃大殿 Sweep the main hall">
+          </div>
+          <div class="modal-field">
+            <label>說明 Description <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="tpl-description" placeholder="例：請於上午 8 點前完成">
+          </div>
+          <div class="field-row">
+            <div class="modal-field">
+              <label>頻率 Recurrence</label>
+              <select id="tpl-recurrence">
+                <option value="daily">每日 Daily</option>
+                <option value="weekly">每週 Weekly</option>
+                <option value="monthly">每月 Monthly</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label>需求人數 Slots</label>
+              <input type="number" id="tpl-slots" min="1" value="1">
+            </div>
+          </div>
+          <div class="modal-field" id="tpl-weekly-field" style="display:none;">
+            <label>星期幾 Day of week</label>
+            <select id="tpl-day-of-week">
+              <option value="0">週日 Sunday</option>
+              <option value="1">週一 Monday</option>
+              <option value="2">週二 Tuesday</option>
+              <option value="3">週三 Wednesday</option>
+              <option value="4">週四 Thursday</option>
+              <option value="5">週五 Friday</option>
+              <option value="6">週六 Saturday</option>
+            </select>
+          </div>
+          <div class="modal-field" id="tpl-monthly-field" style="display:none;">
+            <label>每月幾號 Day of month</label>
+            <input type="number" id="tpl-day-of-month" min="1" max="31" value="1">
+          </div>
+          <p class="modal-error" id="tpl-error"></p>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancel" id="tpl-cancel-btn">取消</button>
+            <button type="button" class="btn-primary" id="tpl-submit-btn">儲存 Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tasks-upcoming-pane" style="display:none;">
+        <div id="upcoming-list"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="tasks-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="assign-modal">
+    <div class="modal-box" style="max-width: 420px;">
+      <h2>指派人員 Assign someone</h2>
+      <p class="modal-sub" id="assign-modal-task-title"></p>
+      <div class="modal-field">
+        <label>搜尋姓名或電話 Search name or phone</label>
+        <input type="text" id="assign-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="assign-search-results" style="max-height: 240px; overflow-y:auto;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="assign-modal-close-btn">關閉</button>
       </div>
     </div>
   </div>
@@ -422,6 +553,7 @@ async function enterDashboard() {
   isSuperAdmin = myRoles.some(r => r.role === 'super_admin');
   document.getElementById('new-event-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-events-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-tasks-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -944,6 +1076,24 @@ async function createLiffForEvent(eventId, slug, name) {
   }
 }
 
+// Generic version for standalone (non-event) pages, like the task
+// roster — same underlying Edge Function, different mode.
+async function createLiffGeneric(purpose, endpointPath, name) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const res = await fetch(CREATE_LIFF_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token, purpose, endpoint_path: endpointPath, name }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || '建立 LIFF 連結失敗');
+    return { ok: true, liffLink: result.liffLink, liffId: result.liffId };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 /* ---------- Manage Events panel (Super Admin only) ---------- */
 
 document.getElementById('manage-events-btn').addEventListener('click', () => {
@@ -1057,6 +1207,356 @@ function renderManageEventsList() {
 
       await loadEvents();
       renderManageEventsList();
+    });
+  });
+}
+
+/* =========================================================
+   Task Management (Super Admin only)
+   ========================================================= */
+
+let taskTemplates = [];
+let upcomingTasks = [];
+let assignPendingInstanceId = null;
+
+document.getElementById('manage-tasks-btn').addEventListener('click', () => {
+  document.getElementById('tasks-modal').classList.add('show');
+  switchTasksTab('templates');
+  loadTaskTemplates();
+  loadTasksLiffStatus();
+});
+
+async function loadTasksLiffStatus() {
+  const areaEl = document.getElementById('tasks-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-tasks-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('tasks', 'tasks.html', '任務認領 Task Roster');
+      if (result.ok) {
+        alert('已建立任務頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadTasksLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-tasks-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('tasks-modal').classList.remove('show');
+});
+
+document.querySelectorAll('#tasks-tabs .tabs-row-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTasksTab(btn.dataset.tab));
+});
+
+function switchTasksTab(tab) {
+  document.querySelectorAll('#tasks-tabs .tabs-row-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tasks-templates-pane').style.display = tab === 'templates' ? 'block' : 'none';
+  document.getElementById('tasks-upcoming-pane').style.display = tab === 'upcoming' ? 'block' : 'none';
+  if (tab === 'upcoming') loadUpcomingTasks();
+}
+
+/* ---------- Templates ---------- */
+
+async function loadTaskTemplates() {
+  const { data, error } = await supabaseClient.from('task_templates').select('*').order('created_at', { ascending: true });
+  if (error) { console.error(error); return; }
+  taskTemplates = data || [];
+  renderTaskTemplates();
+}
+
+const RECURRENCE_LABELS = { daily: '每日 Daily', weekly: '每週 Weekly', monthly: '每月 Monthly' };
+
+function renderTaskTemplates() {
+  const tbody = document.getElementById('task-templates-list');
+  if (taskTemplates.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--ink-soft);">尚無工作範本</td></tr>';
+    return;
+  }
+  tbody.innerHTML = taskTemplates.map(t => `
+    <tr data-template-id="${t.id}">
+      <td><strong>${escapeHtml(t.title)}</strong>${t.description ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escapeHtml(t.description)}</div>` : ''}</td>
+      <td>${RECURRENCE_LABELS[t.recurrence] || t.recurrence}</td>
+      <td>${t.slots_per_instance}</td>
+      <td>
+        <span class="status-select ${t.is_active ? 'confirmed' : 'cancelled'}" style="cursor:default;">
+          ${t.is_active ? '啟用中' : '已停用'}
+        </span>
+      </td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button type="button" class="btn-text tpl-edit-btn">編輯</button>
+        <button type="button" class="btn-text tpl-toggle-btn">${t.is_active ? '停用' : '啟用'}</button>
+        <button type="button" class="btn-text tpl-delete-btn" style="color:var(--red);">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.tpl-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('tr').dataset.templateId;
+      openTemplateForm(taskTemplates.find(t => t.id === id));
+    });
+  });
+  tbody.querySelectorAll('.tpl-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.templateId;
+      const t = taskTemplates.find(x => x.id === id);
+      const { error } = await supabaseClient.from('task_templates').update({ is_active: !t.is_active }).eq('id', id);
+      if (error) { alert('更新失敗：' + error.message); return; }
+      await loadTaskTemplates();
+    });
+  });
+  tbody.querySelectorAll('.tpl-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.templateId;
+      const t = taskTemplates.find(x => x.id === id);
+      if (!confirm(`確定要刪除「${t.title}」嗎？\n\n這會一併刪除所有已產生的排程與認領紀錄，且無法復原。`)) return;
+      const { error } = await supabaseClient.from('task_templates').delete().eq('id', id);
+      if (error) { alert('刪除失敗：' + error.message); return; }
+      await loadTaskTemplates();
+    });
+  });
+}
+
+document.getElementById('new-template-btn').addEventListener('click', () => openTemplateForm(null));
+
+function openTemplateForm(tpl) {
+  document.getElementById('template-form').style.display = 'block';
+  document.getElementById('tpl-error').style.display = 'none';
+  document.getElementById('tpl-editing-id').value = tpl ? tpl.id : '';
+  document.getElementById('tpl-title').value = tpl ? tpl.title : '';
+  document.getElementById('tpl-description').value = tpl ? (tpl.description || '') : '';
+  document.getElementById('tpl-recurrence').value = tpl ? tpl.recurrence : 'daily';
+  document.getElementById('tpl-slots').value = tpl ? tpl.slots_per_instance : 1;
+  const detail = (tpl && tpl.recurrence_detail) || {};
+  document.getElementById('tpl-day-of-week').value = detail.day_of_week ?? '0';
+  document.getElementById('tpl-day-of-month').value = detail.day_of_month ?? '1';
+  syncRecurrenceFieldVisibility();
+}
+
+document.getElementById('tpl-recurrence').addEventListener('change', syncRecurrenceFieldVisibility);
+function syncRecurrenceFieldVisibility() {
+  const rec = document.getElementById('tpl-recurrence').value;
+  document.getElementById('tpl-weekly-field').style.display = rec === 'weekly' ? 'block' : 'none';
+  document.getElementById('tpl-monthly-field').style.display = rec === 'monthly' ? 'block' : 'none';
+}
+
+document.getElementById('tpl-cancel-btn').addEventListener('click', () => {
+  document.getElementById('template-form').style.display = 'none';
+});
+
+document.getElementById('tpl-submit-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('tpl-error');
+  errorEl.style.display = 'none';
+
+  const title = document.getElementById('tpl-title').value.trim();
+  const description = document.getElementById('tpl-description').value.trim() || null;
+  const recurrence = document.getElementById('tpl-recurrence').value;
+  const slots = parseInt(document.getElementById('tpl-slots').value, 10) || 1;
+
+  if (!title) {
+    errorEl.textContent = '請填寫工作名稱。';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  let recurrence_detail = {};
+  if (recurrence === 'weekly') recurrence_detail = { day_of_week: parseInt(document.getElementById('tpl-day-of-week').value, 10) };
+  if (recurrence === 'monthly') recurrence_detail = { day_of_month: parseInt(document.getElementById('tpl-day-of-month').value, 10) };
+
+  const editingId = document.getElementById('tpl-editing-id').value;
+  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots };
+
+  const { error } = editingId
+    ? await supabaseClient.from('task_templates').update(payload).eq('id', editingId)
+    : await supabaseClient.from('task_templates').insert(payload);
+
+  if (error) {
+    errorEl.textContent = '儲存失敗：' + error.message;
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  document.getElementById('template-form').style.display = 'none';
+  await loadTaskTemplates();
+});
+
+/* ---------- Upcoming instances ---------- */
+
+async function loadUpcomingTasks() {
+  const listEl = document.getElementById('upcoming-list');
+  listEl.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px;">載入中…</div>';
+
+  const from = new Date().toISOString().slice(0, 10);
+  const toDate = new Date();
+  toDate.setDate(toDate.getDate() + 30);
+  const to = toDate.toISOString().slice(0, 10);
+
+  await supabaseClient.rpc('ensure_task_instances', { p_from: from, p_to: to });
+
+  const { data: instances, error: instErr } = await supabaseClient
+    .from('task_instances')
+    .select('id, occurrence_date, template_id, task_templates ( title, slots_per_instance, is_active )')
+    .gte('occurrence_date', from)
+    .lte('occurrence_date', to)
+    .order('occurrence_date', { ascending: true });
+
+  if (instErr) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(instErr.message) + '</div>'; return; }
+
+  const activeInstances = (instances || []).filter(i => i.task_templates && i.task_templates.is_active);
+  const instanceIds = activeInstances.map(i => i.id);
+
+  let assignments = [];
+  if (instanceIds.length > 0) {
+    const { data: asg, error: asgErr } = await supabaseClient
+      .from('task_assignments')
+      .select('id, instance_id, status, users ( display_name, phone )')
+      .in('instance_id', instanceIds)
+      .neq('status', 'cancelled');
+    if (asgErr) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(asgErr.message) + '</div>'; return; }
+    assignments = asg || [];
+  }
+
+  upcomingTasks = activeInstances.map(inst => ({
+    instance_id: inst.id,
+    occurrence_date: inst.occurrence_date,
+    title: inst.task_templates.title,
+    slots_total: inst.task_templates.slots_per_instance,
+    assignments: assignments.filter(a => a.instance_id === inst.id),
+  }));
+
+  renderUpcomingTasks();
+}
+
+function renderUpcomingTasks() {
+  const listEl = document.getElementById('upcoming-list');
+  if (upcomingTasks.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center; color:var(--ink-soft); padding:20px;">近期沒有排程中的任務。</div>';
+    return;
+  }
+
+  const byDate = {};
+  upcomingTasks.forEach(t => {
+    if (!byDate[t.occurrence_date]) byDate[t.occurrence_date] = [];
+    byDate[t.occurrence_date].push(t);
+  });
+
+  listEl.innerHTML = Object.keys(byDate).sort().map(date => `
+    <div class="upcoming-date-heading">${date}</div>
+    ${byDate[date].map(t => {
+      const isFull = t.assignments.length >= t.slots_total;
+      const names = t.assignments.map(a =>
+        `${escapeHtml(a.users?.display_name || '—')}<button type="button" class="remove-assignment-btn" data-assignment-id="${a.id}">移除</button>`
+      ).join('　');
+      return `
+        <div class="upcoming-card" data-instance-id="${t.instance_id}" data-title="${escapeHtml(t.title)}">
+          <div class="upcoming-card-top">
+            <span class="upcoming-card-title">${escapeHtml(t.title)}</span>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="upcoming-card-slots ${isFull ? 'full' : ''}">${t.assignments.length} / ${t.slots_total} 人</span>
+              <button type="button" class="btn-text assign-btn">＋ 指派</button>
+            </div>
+          </div>
+          ${names ? `<div class="upcoming-card-names">${names}</div>` : ''}
+        </div>`;
+    }).join('')}
+  `).join('');
+
+  listEl.querySelectorAll('.assign-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.upcoming-card');
+      openAssignModal(card.dataset.instanceId, card.dataset.title);
+    });
+  });
+  listEl.querySelectorAll('.remove-assignment-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const assignmentId = e.target.dataset.assignmentId;
+      const { error } = await supabaseClient.from('task_assignments').update({ status: 'cancelled' }).eq('id', assignmentId);
+      if (error) { alert('移除失敗：' + error.message); return; }
+      await loadUpcomingTasks();
+    });
+  });
+}
+
+/* ---------- Assign modal ---------- */
+
+function openAssignModal(instanceId, title) {
+  assignPendingInstanceId = instanceId;
+  document.getElementById('assign-modal-task-title').textContent = title;
+  document.getElementById('assign-search-input').value = '';
+  document.getElementById('assign-search-results').innerHTML = '';
+  document.getElementById('assign-modal').classList.add('show');
+  document.getElementById('assign-search-input').focus();
+}
+document.getElementById('assign-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('assign-modal').classList.remove('show');
+});
+
+let assignSearchDebounce = null;
+document.getElementById('assign-search-input').addEventListener('input', (e) => {
+  clearTimeout(assignSearchDebounce);
+  const q = e.target.value.trim();
+  assignSearchDebounce = setTimeout(() => runAssignSearch(q), 300);
+});
+
+async function runAssignSearch(query) {
+  const resultsEl = document.getElementById('assign-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="assign-pick-btn" data-user-id="${u.id}">指派</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.assign-pick-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '指派中…';
+      const { error: asgErr } = await supabaseClient
+        .from('task_assignments')
+        .insert({ instance_id: assignPendingInstanceId, user_id: userId, status: 'assigned', assigned_by: 'admin' });
+      if (asgErr) {
+        alert('指派失敗：' + asgErr.message);
+        btn.disabled = false;
+        btn.textContent = '指派';
+        return;
+      }
+      document.getElementById('assign-modal').classList.remove('show');
+      await loadUpcomingTasks();
     });
   });
 }
