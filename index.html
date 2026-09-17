@@ -310,6 +310,21 @@
     background: none; border: none; color: var(--ink-soft); font-size: 11px; text-decoration: underline;
     cursor: pointer; margin-left: 4px; padding: 0;
   }
+
+  /* ---- Groups ---- */
+  .group-create-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .group-create-row input {
+    flex: 1; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 8px;
+    font-size: 14px; font-family: inherit; background: var(--paper);
+  }
+  .group-checkbox-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .group-checkbox-chip {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
+    border: 1.5px solid var(--line); font-size: 13px; cursor: pointer; user-select: none;
+  }
+  .group-checkbox-chip input { width: 15px; height: 15px; }
+  .group-checkbox-chip.checked { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+  .no-groups-note { font-size: 12.5px; color: var(--ink-soft); }
 </style>
 </head>
 <body>
@@ -343,6 +358,7 @@
       <button class="btn-new-event" id="new-event-btn" style="display:none;">+ 新增活動 New Event</button>
       <button class="btn-new-event" id="manage-events-btn" style="display:none; background:var(--ink-soft);">管理活動 Manage</button>
       <button class="btn-new-event" id="manage-tasks-btn" style="display:none; background:var(--blue);">任務管理 Tasks</button>
+      <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -511,6 +527,10 @@
             <div id="subtask-builder-list"></div>
             <button type="button" class="btn-add-field" id="add-subtask-btn">＋ 新增子項目 Add subtask</button>
           </div>
+          <div class="modal-field">
+            <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這項工作</span></label>
+            <div class="group-checkbox-list" id="tpl-group-checkboxes"></div>
+          </div>
           <p class="modal-error" id="tpl-error"></p>
           <div class="modal-actions">
             <button type="button" class="btn-cancel" id="tpl-cancel-btn">取消</button>
@@ -558,6 +578,50 @@
       <div id="assign-search-results" style="max-height: 240px; overflow-y:auto;"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="assign-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="groups-modal">
+    <div class="modal-box" style="max-width: 600px;">
+      <h2>群組管理 Groups</h2>
+      <p class="modal-sub">建立群組，並將工作範本限定給特定群組的人員才能看到。</p>
+
+      <div class="group-create-row">
+        <input type="text" id="group-new-name" placeholder="新群組名稱，例：香燈組">
+        <button type="button" class="btn-new-event" id="group-create-btn">＋ 新增群組</button>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom: 14px;">
+        <table>
+          <thead>
+            <tr><th>群組名稱</th><th>成員人數</th><th style="text-align:right;">操作</th></tr>
+          </thead>
+          <tbody id="groups-list"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="groups-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="group-members-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>群組成員 Group members</h2>
+      <p class="modal-sub" id="group-members-modal-title"></p>
+
+      <div id="group-members-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增成員 Search name or phone to add</label>
+        <input type="text" id="group-member-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="group-member-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="group-members-modal-close-btn">關閉</button>
       </div>
     </div>
   </div>
@@ -658,6 +722,7 @@ async function enterDashboard() {
   document.getElementById('new-event-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-events-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-tasks-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-groups-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1326,6 +1391,8 @@ let subtaskBuilderCount = 0;
 let upcomingView = 'list'; // 'list' | 'calendar'
 let adminCalCursor = new Date();
 let adminCalSelectedDate = null;
+let allGroups = [];
+let groupMembersPendingGroupId = null;
 
 document.getElementById('manage-tasks-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.add('show');
@@ -1494,6 +1561,34 @@ async function openTemplateForm(tpl) {
       .order('sort_order', { ascending: true });
     (subs || []).forEach(s => addSubtaskBuilderRow(s));
   }
+
+  await loadGroups();
+  let checkedGroupIds = new Set();
+  if (tpl) {
+    const { data: tg } = await supabaseClient
+      .from('task_template_groups')
+      .select('group_id')
+      .eq('template_id', tpl.id);
+    checkedGroupIds = new Set((tg || []).map(r => r.group_id));
+  }
+  renderTplGroupCheckboxes(checkedGroupIds);
+}
+
+function renderTplGroupCheckboxes(checkedGroupIds) {
+  const wrap = document.getElementById('tpl-group-checkboxes');
+  if (allGroups.length === 0) {
+    wrap.innerHTML = '<span class="no-groups-note">尚未建立任何群組，請先在「群組 Groups」中建立。</span>';
+    return;
+  }
+  wrap.innerHTML = allGroups.map(g => `
+    <label class="group-checkbox-chip ${checkedGroupIds.has(g.id) ? 'checked' : ''}">
+      <input type="checkbox" value="${g.id}" ${checkedGroupIds.has(g.id) ? 'checked' : ''}>
+      ${escapeHtml(g.name)}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.group-checkbox-chip input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.group-checkbox-chip').classList.toggle('checked', cb.checked));
+  });
 }
 
 document.getElementById('tpl-recurrence').addEventListener('change', syncRecurrenceFieldVisibility);
@@ -1604,6 +1699,25 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
     } else {
       await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, sort_order: row.sort_order });
     }
+  }
+
+  // Sync the group assignment: replace whatever rows existed with
+  // whatever is checked now (a plain join table, so no ids to
+  // preserve — just diff and apply).
+  const checkedGroupIds = [...document.querySelectorAll('#tpl-group-checkboxes input:checked')].map(cb => cb.value);
+  const { data: existingGroupLinks } = await supabaseClient
+    .from('task_template_groups')
+    .select('group_id')
+    .eq('template_id', templateId);
+  const existingGroupIds = (existingGroupLinks || []).map(r => r.group_id);
+  const toRemoveGroups = existingGroupIds.filter(id => !checkedGroupIds.includes(id));
+  const toAddGroups = checkedGroupIds.filter(id => !existingGroupIds.includes(id));
+
+  if (toRemoveGroups.length > 0) {
+    await supabaseClient.from('task_template_groups').delete().eq('template_id', templateId).in('group_id', toRemoveGroups);
+  }
+  if (toAddGroups.length > 0) {
+    await supabaseClient.from('task_template_groups').insert(toAddGroups.map(group_id => ({ template_id: templateId, group_id })));
   }
 
   submitBtn.disabled = false;
@@ -1934,6 +2048,197 @@ async function runAssignSearch(query) {
       }
       document.getElementById('assign-modal').classList.remove('show');
       await loadUpcomingTasks();
+    });
+  });
+}
+
+/* =========================================================
+   Groups (Super Admin only)
+   ========================================================= */
+
+document.getElementById('manage-groups-btn').addEventListener('click', () => {
+  document.getElementById('groups-modal').classList.add('show');
+  loadGroups().then(renderGroupsList);
+});
+document.getElementById('groups-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('groups-modal').classList.remove('show');
+});
+
+async function loadGroups() {
+  const { data: groups, error } = await supabaseClient.from('task_groups').select('id, name').order('created_at', { ascending: true });
+  if (error) { console.error(error); allGroups = []; return; }
+  allGroups = groups || [];
+
+  if (allGroups.length > 0) {
+    const { data: members } = await supabaseClient
+      .from('task_group_members')
+      .select('group_id')
+      .in('group_id', allGroups.map(g => g.id));
+    allGroups.forEach(g => {
+      g.member_count = (members || []).filter(m => m.group_id === g.id).length;
+    });
+  }
+}
+
+function renderGroupsList() {
+  const tbody = document.getElementById('groups-list');
+  if (!tbody) return;
+  if (allGroups.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--ink-soft);">尚無群組</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allGroups.map(g => `
+    <tr data-group-id="${g.id}">
+      <td><strong>${escapeHtml(g.name)}</strong></td>
+      <td>${g.member_count ?? 0}</td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button type="button" class="btn-text grp-members-btn">管理成員</button>
+        <button type="button" class="btn-text grp-rename-btn">重新命名</button>
+        <button type="button" class="btn-text grp-delete-btn" style="color:var(--red);">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.grp-members-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('tr').dataset.groupId;
+      const g = allGroups.find(x => x.id === id);
+      openGroupMembersModal(g.id, g.name);
+    });
+  });
+  tbody.querySelectorAll('.grp-rename-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.groupId;
+      const g = allGroups.find(x => x.id === id);
+      const newName = prompt('群組名稱：', g.name);
+      if (!newName || !newName.trim() || newName.trim() === g.name) return;
+      const { error } = await supabaseClient.from('task_groups').update({ name: newName.trim() }).eq('id', id);
+      if (error) { alert('重新命名失敗：' + error.message); return; }
+      await loadGroups();
+      renderGroupsList();
+    });
+  });
+  tbody.querySelectorAll('.grp-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.groupId;
+      const g = allGroups.find(x => x.id === id);
+      if (!confirm(`確定要刪除群組「${g.name}」嗎？\n\n使用此群組限定的工作範本將變回所有人可見。`)) return;
+      const { error } = await supabaseClient.from('task_groups').delete().eq('id', id);
+      if (error) { alert('刪除失敗：' + error.message); return; }
+      await loadGroups();
+      renderGroupsList();
+    });
+  });
+}
+
+document.getElementById('group-create-btn').addEventListener('click', async () => {
+  const input = document.getElementById('group-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const btn = document.getElementById('group-create-btn');
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('task_groups').insert({ name });
+  btn.disabled = false;
+  if (error) { alert('新增失敗：' + error.message); return; }
+  input.value = '';
+  await loadGroups();
+  renderGroupsList();
+});
+
+/* ---------- Group members modal ---------- */
+
+function openGroupMembersModal(groupId, groupName) {
+  groupMembersPendingGroupId = groupId;
+  document.getElementById('group-members-modal-title').textContent = groupName;
+  document.getElementById('group-member-search-input').value = '';
+  document.getElementById('group-member-search-results').innerHTML = '';
+  document.getElementById('group-members-modal').classList.add('show');
+  loadGroupMembersList();
+}
+document.getElementById('group-members-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('group-members-modal').classList.remove('show');
+  loadGroups().then(renderGroupsList); // refresh member counts behind it
+});
+
+async function loadGroupMembersList() {
+  const listEl = document.getElementById('group-members-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('task_group_members')
+    .select('user_id, users ( display_name, phone )')
+    .eq('group_id', groupMembersPendingGroupId);
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無成員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="grp-remove-member-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.grp-remove-member-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient
+        .from('task_group_members')
+        .delete()
+        .eq('group_id', groupMembersPendingGroupId)
+        .eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadGroupMembersList();
+    });
+  });
+}
+
+let groupMemberSearchDebounce = null;
+document.getElementById('group-member-search-input').addEventListener('input', (e) => {
+  clearTimeout(groupMemberSearchDebounce);
+  const q = e.target.value.trim();
+  groupMemberSearchDebounce = setTimeout(() => runGroupMemberSearch(q), 300);
+});
+
+async function runGroupMemberSearch(query) {
+  const resultsEl = document.getElementById('group-member-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="grp-add-member-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.grp-add-member-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient
+        .from('task_group_members')
+        .insert({ group_id: groupMembersPendingGroupId, user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadGroupMembersList();
     });
   });
 }
