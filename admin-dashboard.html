@@ -442,6 +442,16 @@
       <h2>管理活動 Manage Events</h2>
       <p class="modal-sub">編輯活動內容、暫停報名，或永久刪除活動。</p>
 
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">活動管理頁面的 LINE 連結 Event admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯活動，功能與此後台相同</span></span>
+        <span id="event-admin-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">活動管理員 Event Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的活動管理頁面</span></span>
+        <button type="button" class="btn-text" id="manage-event-admins-btn">管理 Manage</button>
+      </div>
+
       <div class="table-wrap" style="margin-bottom: 18px;">
         <table>
           <thead>
@@ -455,6 +465,25 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="manage-events-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="event-admins-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>活動管理員 Event Admins</h2>
+      <p class="modal-sub">只有在此名單中的 LINE 帳號，才能透過「活動管理頁面的 LINE 連結」建立／編輯／刪除活動。對方需先用 LINE 開啟過那個連結一次（就算沒有權限也會先建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="event-admins-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增管理員 Search name or phone to add</label>
+        <input type="text" id="event-admin-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="event-admin-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="event-admins-modal-close-btn">關閉</button>
       </div>
     </div>
   </div>
@@ -802,7 +831,8 @@
         顯示規則：<br>
         ・行功了愿表：至少有一筆公開或該成員所屬群組可見的工作範本時才會顯示<br>
         ・開班資訊表：至少有一筆公開或該成員所屬群組可見的班程時才會顯示<br>
-        ・行功了愿管理／流程表管理：只有在「工作管理員」「流程管理員」名單中的帳號才會看到
+        ・行功了愿管理／流程表管理／活動管理：只有在「工作管理員」「流程管理員」「活動管理員」名單中的帳號才會看到<br>
+        ・活動報名：每個啟用中且已建立 LINE 連結的活動都會列出，無群組限制
       </p>
 
       <div class="modal-actions">
@@ -1473,12 +1503,137 @@ async function createLiffGeneric(purpose, endpointPath, name) {
 
 document.getElementById('manage-events-btn').addEventListener('click', () => {
   renderManageEventsList();
+  loadEventAdminLiffStatus();
   document.getElementById('manage-events-modal').classList.add('show');
 });
 
 document.getElementById('manage-events-close-btn').addEventListener('click', () => {
   document.getElementById('manage-events-modal').classList.remove('show');
 });
+
+async function loadEventAdminLiffStatus() {
+  const areaEl = document.getElementById('event-admin-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'event_admin').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-event-admin-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-event-admin-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('event_admin', 'event-admin.html', '活動管理 Event Admin');
+      if (result.ok) {
+        alert('已建立活動管理頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadEventAdminLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-event-admin-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-event-admin-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+document.getElementById('manage-event-admins-btn').addEventListener('click', () => {
+  document.getElementById('event-admin-search-input').value = '';
+  document.getElementById('event-admin-search-results').innerHTML = '';
+  document.getElementById('event-admins-modal').classList.add('show');
+  loadEventAdminsList();
+});
+document.getElementById('event-admins-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('event-admins-modal').classList.remove('show');
+});
+
+async function loadEventAdminsList() {
+  const listEl = document.getElementById('event-admins-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('event_admins')
+    .select('user_id, users ( display_name, phone )');
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無活動管理員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="ea-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.ea-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient.from('event_admins').delete().eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadEventAdminsList();
+    });
+  });
+}
+
+let eventAdminSearchDebounce = null;
+document.getElementById('event-admin-search-input').addEventListener('input', (e) => {
+  clearTimeout(eventAdminSearchDebounce);
+  const q = e.target.value.trim();
+  eventAdminSearchDebounce = setTimeout(() => runEventAdminSearch(q), 300);
+});
+
+async function runEventAdminSearch(query) {
+  const resultsEl = document.getElementById('event-admin-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過活動管理頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="ea-add-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.ea-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient.from('event_admins').insert({ user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadEventAdminsList();
+    });
+  });
+}
 
 function isValidLiffId(liffId) {
   return !!liffId && /^\d+-[A-Za-z0-9]+$/.test(liffId);
