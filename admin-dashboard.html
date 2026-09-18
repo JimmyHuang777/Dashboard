@@ -477,6 +477,14 @@
         <div id="template-form" style="display:none; border:1.5px solid var(--line); border-radius:10px; padding:16px; margin-top:14px;">
           <input type="hidden" id="tpl-editing-id" value="">
           <div class="modal-field">
+            <label>套用已存範本 Apply a saved preset <span class="modal-hint" style="margin:0;">套用後覆蓋名稱／說明／地點／開始結束日期／子項目／群組，不含頻率、星期幾或幾號、單次日期、需求人數</span></label>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="tpl-preset-select" style="flex:1; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit; background:var(--paper);"></select>
+              <button type="button" class="btn-add-field" id="tpl-preset-apply-btn" style="width:auto; margin:0; white-space:nowrap; padding:9px 14px;">套用 Apply</button>
+              <button type="button" class="btn-add-field" id="tpl-preset-delete-btn" style="width:auto; margin:0; white-space:nowrap; padding:9px 14px; color:var(--red); border-color:var(--red-bg);">刪除 Delete</button>
+            </div>
+          </div>
+          <div class="modal-field">
             <label>工作名稱 Title</label>
             <input type="text" id="tpl-title" placeholder="例：打掃大殿 Sweep the main hall">
           </div>
@@ -545,6 +553,7 @@
           <p class="modal-error" id="tpl-error"></p>
           <div class="modal-actions">
             <button type="button" class="btn-cancel" id="tpl-cancel-btn">取消</button>
+            <button type="button" class="btn-cancel" id="tpl-save-preset-btn">另存為範本 Save as preset</button>
             <button type="button" class="btn-primary" id="tpl-submit-btn">儲存 Save</button>
           </div>
         </div>
@@ -1584,7 +1593,104 @@ async function openTemplateForm(tpl) {
     checkedGroupIds = new Set((tg || []).map(r => r.group_id));
   }
   renderTplGroupCheckboxes(checkedGroupIds);
+
+  await loadJobPresets();
 }
+
+/* ---------- Job presets (save/apply a job's content, minus
+   recurrence/day-of-week/day-of-month/once-date/slots) ---------- */
+
+let allJobPresets = [];
+
+async function loadJobPresets() {
+  const { data, error } = await supabaseClient
+    .from('task_job_presets')
+    .select('*')
+    .order('name', { ascending: true });
+  if (error) { allJobPresets = []; return; }
+  allJobPresets = data || [];
+  const sel = document.getElementById('tpl-preset-select');
+  const prevValue = sel.value;
+  sel.innerHTML = '<option value="">— 選擇範本 Choose a preset —</option>' +
+    allJobPresets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  if (allJobPresets.some(p => p.id === prevValue)) sel.value = prevValue;
+}
+
+document.getElementById('tpl-preset-apply-btn').addEventListener('click', () => {
+  const presetId = document.getElementById('tpl-preset-select').value;
+  if (!presetId) { alert('請先選擇一個範本。'); return; }
+  const preset = allJobPresets.find(p => p.id === presetId);
+  if (!preset) return;
+  if (!confirm(`套用範本「${preset.name}」將覆蓋目前表單中的名稱／說明／地點／開始結束日期／子項目／群組內容（頻率、星期幾或幾號、單次日期、需求人數不受影響）。確定要套用嗎？`)) return;
+
+  document.getElementById('tpl-title').value = preset.title || '';
+  document.getElementById('tpl-description').value = preset.description || '';
+  document.getElementById('tpl-place').value = preset.place || '';
+  // Start/end date only apply outside "once" mode — a once-off job's
+  // single date lives in a different field and isn't part of a preset.
+  if (document.getElementById('tpl-recurrence').value !== 'once') {
+    document.getElementById('tpl-start-date').value = preset.start_date || '';
+    document.getElementById('tpl-end-date').value = preset.end_date || '';
+  }
+
+  document.getElementById('subtask-builder-list').innerHTML = '';
+  (preset.subtasks || []).forEach(s => addSubtaskBuilderRow({ title: s.title }));
+
+  const presetGroupIds = new Set((preset.group_ids || []).filter(id => allGroups.some(g => g.id === id)));
+  renderTplGroupCheckboxes(presetGroupIds);
+});
+
+document.getElementById('tpl-preset-delete-btn').addEventListener('click', async () => {
+  const presetId = document.getElementById('tpl-preset-select').value;
+  if (!presetId) { alert('請先選擇一個範本。'); return; }
+  const preset = allJobPresets.find(p => p.id === presetId);
+  if (!preset) return;
+  if (!confirm(`確定要刪除範本「${preset.name}」嗎？（不影響已經套用出去的工作範本，只是刪除這個可重複套用的存檔）`)) return;
+  const { error } = await supabaseClient.from('task_job_presets').delete().eq('id', presetId);
+  if (error) { alert('刪除失敗：' + error.message); return; }
+  await loadJobPresets();
+});
+
+document.getElementById('tpl-save-preset-btn').addEventListener('click', async () => {
+  const title = document.getElementById('tpl-title').value.trim();
+  if (!title) { alert('請先填寫工作名稱，才能另存為範本。'); return; }
+
+  const name = prompt('範本名稱 Preset name（用於稍後在下拉選單中辨識，可以跟工作名稱不同）：', title);
+  if (name === null) return;
+  const presetName = name.trim();
+  if (!presetName) return;
+
+  const description = document.getElementById('tpl-description').value.trim() || null;
+  const place = document.getElementById('tpl-place').value.trim() || null;
+  const recurrence = document.getElementById('tpl-recurrence').value;
+  const start_date = recurrence !== 'once' ? (document.getElementById('tpl-start-date').value || null) : null;
+  const end_date = recurrence !== 'once' ? (document.getElementById('tpl-end-date').value || null) : null;
+
+  const subtasks = [...document.querySelectorAll('#subtask-builder-list .subtask-builder-row')]
+    .map(row => row.querySelector('.sb-title').value.trim())
+    .filter(Boolean)
+    .map(t => ({ title: t }));
+
+  const group_ids = [...document.querySelectorAll('#tpl-group-checkboxes input:checked')].map(cb => cb.value);
+
+  const payload = { name: presetName, title, description, place, start_date, end_date, subtasks, group_ids };
+
+  const { data: existing } = await supabaseClient.from('task_job_presets').select('id').eq('name', presetName).maybeSingle();
+  let error, savedId;
+  if (existing) {
+    if (!confirm(`已有名為「${presetName}」的範本，要覆蓋它嗎？`)) return;
+    ({ error } = await supabaseClient.from('task_job_presets').update(payload).eq('id', existing.id));
+    savedId = existing.id;
+  } else {
+    const { data, error: insErr } = await supabaseClient.from('task_job_presets').insert(payload).select().single();
+    error = insErr;
+    savedId = data?.id;
+  }
+  if (error) { alert('儲存範本失敗：' + error.message); return; }
+  alert('範本已儲存！');
+  await loadJobPresets();
+  if (savedId) document.getElementById('tpl-preset-select').value = savedId;
+});
 
 function renderTplGroupCheckboxes(checkedGroupIds) {
   const wrap = document.getElementById('tpl-group-checkboxes');
