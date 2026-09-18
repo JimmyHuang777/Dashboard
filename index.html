@@ -1731,7 +1731,7 @@ async function loadActivityFlowLiffStatus() {
       const btn = e.target;
       btn.textContent = '建立中…';
       btn.disabled = true;
-      const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '行功了愿表 Activity Flow');
+      const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '開班資訊表 Activity Flow');
       if (result.ok) {
         alert('已建立流程表查看頁面的專屬 LINE 連結：\n' + result.liffLink);
         loadActivityFlowLiffStatus();
