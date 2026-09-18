@@ -380,6 +380,7 @@
       <button class="btn-new-event" id="manage-tasks-btn" style="display:none; background:var(--blue);">任務管理 Tasks</button>
       <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
       <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
+      <button class="btn-new-event" id="manage-home-btn" style="display:none; background:#0E9F6E;">入口連結 Home Link</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -787,6 +788,29 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="home-modal">
+    <div class="modal-box" style="max-width: 480px;">
+      <h2>入口連結 Home Link</h2>
+      <p class="modal-sub">單一 LINE 連結入口，會依每個人的身分（一般成員／工作管理員／流程管理員）自動顯示可用的功能，不用再分別傳送各功能的連結。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">入口頁面的 LINE 連結 Home page LINE link</span>
+        <span id="home-liff-link-area"></span>
+      </div>
+
+      <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin: 14px 4px 0;">
+        顯示規則：<br>
+        ・行功了愿表：至少有一筆公開或該成員所屬群組可見的工作範本時才會顯示<br>
+        ・開班資訊表：至少有一筆公開或該成員所屬群組可見的班程時才會顯示<br>
+        ・行功了愿管理／流程表管理：只有在「工作管理員」「流程管理員」名單中的帳號才會看到
+      </p>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="home-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="flow-admins-modal">
     <div class="modal-box" style="max-width: 460px;">
       <h2>流程管理員 Flow Admins</h2>
@@ -904,6 +928,7 @@ async function enterDashboard() {
   document.getElementById('manage-tasks-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-groups-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-flows-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-home-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1661,6 +1686,56 @@ async function loadTasksAdminLiffStatus() {
 document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.remove('show');
 });
+
+/* =========================================================
+   HOME / ENTRY LINK (功能入口)
+   ========================================================= */
+
+document.getElementById('manage-home-btn').addEventListener('click', () => {
+  document.getElementById('home-modal').classList.add('show');
+  loadHomeLiffStatus();
+});
+document.getElementById('home-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('home-modal').classList.remove('show');
+});
+
+async function loadHomeLiffStatus() {
+  const areaEl = document.getElementById('home-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'home').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-home-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-home-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('home', 'home.html', '功能入口 Home');
+      if (result.ok) {
+        alert('已建立入口頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadHomeLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-home-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-home-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
 
 /* =========================================================
    ACTIVITY FLOW SHEETS (活動流程表)
