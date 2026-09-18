@@ -427,6 +427,11 @@
           <button type="button" class="btn-add-field" id="add-field-btn">＋ 新增欄位 Add field</button>
         </div>
 
+        <div class="modal-field">
+          <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這個活動</span></label>
+          <div class="group-checkbox-list" id="ne-group-checkboxes"></div>
+        </div>
+
         <p class="modal-error" id="ne-error"></p>
 
         <div class="modal-actions">
@@ -1307,7 +1312,7 @@ document.getElementById('add-field-btn').addEventListener('click', () => addFiel
 
 document.getElementById('new-event-btn').addEventListener('click', () => openEventModal(null));
 
-function openEventModal(eventToEdit) {
+async function openEventModal(eventToEdit) {
   document.getElementById('new-event-form').reset();
   document.getElementById('field-builder-list').innerHTML = '';
   document.getElementById('ne-error').style.display = 'none';
@@ -1342,7 +1347,56 @@ function openEventModal(eventToEdit) {
     addFieldBuilderRow({ label: '', type: 'select' });
   }
 
+  await loadGroups();
+  let checkedGroupIds = new Set();
+  if (eventToEdit) {
+    const { data: eg } = await supabaseClient
+      .from('event_groups')
+      .select('group_id')
+      .eq('event_id', eventToEdit.id);
+    checkedGroupIds = new Set((eg || []).map(r => r.group_id));
+  }
+  renderEventGroupCheckboxes(checkedGroupIds);
+
   document.getElementById('new-event-modal').classList.add('show');
+}
+
+function renderEventGroupCheckboxes(checkedGroupIds) {
+  const wrap = document.getElementById('ne-group-checkboxes');
+  if (allGroups.length === 0) {
+    wrap.innerHTML = '<span class="no-groups-note">尚未建立任何群組，請先在「群組 Groups」中建立。</span>';
+    return;
+  }
+  wrap.innerHTML = allGroups.map(g => `
+    <label class="group-checkbox-chip ${checkedGroupIds.has(g.id) ? 'checked' : ''}">
+      <input type="checkbox" value="${g.id}" ${checkedGroupIds.has(g.id) ? 'checked' : ''}>
+      ${escapeHtml(g.name)}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.group-checkbox-chip input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.group-checkbox-chip').classList.toggle('checked', cb.checked));
+  });
+}
+
+// Sync the group assignment: replace whatever rows existed with
+// whatever is checked now (a plain join table, so no ids to
+// preserve — just diff and apply). Same pattern as task_template_groups.
+async function syncEventGroups(eventId) {
+  const checkedGroupIds = [...document.querySelectorAll('#ne-group-checkboxes input:checked')].map(cb => cb.value);
+  const { data: existingGroupLinks } = await supabaseClient
+    .from('event_groups')
+    .select('group_id')
+    .eq('event_id', eventId);
+  const existingGroupIds = (existingGroupLinks || []).map(r => r.group_id);
+  const toRemoveGroups = existingGroupIds.filter(id => !checkedGroupIds.includes(id));
+  const toAddGroups = checkedGroupIds.filter(id => !existingGroupIds.includes(id));
+
+  if (toRemoveGroups.length > 0) {
+    await supabaseClient.from('event_groups').delete().eq('event_id', eventId).in('group_id', toRemoveGroups);
+  }
+  if (toAddGroups.length > 0) {
+    await supabaseClient.from('event_groups').insert(toAddGroups.map(group_id => ({ event_id: eventId, group_id })));
+  }
 }
 
 document.getElementById('ne-cancel-btn').addEventListener('click', () => {
@@ -1422,6 +1476,8 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
       return;
     }
 
+    await syncEventGroups(editingId);
+
     document.getElementById('new-event-modal').classList.remove('show');
     await loadEvents();
     eventSelect.value = editingId;
@@ -1448,6 +1504,8 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
     errorEl.style.display = 'block';
     return;
   }
+
+  await syncEventGroups(data.id);
 
   document.getElementById('new-event-modal').classList.remove('show');
   await loadEvents();
