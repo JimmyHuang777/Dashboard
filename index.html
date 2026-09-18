@@ -6,6 +6,7 @@
 <title>報名管理後台 · Registration Admin</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.js"></script>
 
 <style>
   :root {
@@ -250,6 +251,14 @@
   }
 
   /* ---- Task subtask builder ---- */
+  .flow-item-row { display: grid; grid-template-columns: 100px 100px 1fr 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .flow-item-row input { padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit; background: var(--paper); }
+  .flow-item-row .remove-field-btn {
+    background: var(--red-bg); color: var(--red); border: none; border-radius: 6px;
+    width: 32px; height: 34px; cursor: pointer; font-size: 15px;
+  }
+  .flow-item-row-labels { display: grid; grid-template-columns: 100px 100px 1fr 32px; gap: 8px; margin-bottom: 6px; }
+  .flow-item-row-labels span { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
   .subtask-builder-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   .subtask-builder-row input {
     flex: 1; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px;
@@ -370,6 +379,7 @@
       <button class="btn-new-event" id="manage-events-btn" style="display:none; background:var(--ink-soft);">管理活動 Manage</button>
       <button class="btn-new-event" id="manage-tasks-btn" style="display:none; background:var(--blue);">任務管理 Tasks</button>
       <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
+      <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -676,6 +686,117 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="flows-modal">
+    <div class="modal-box" style="max-width: 820px;">
+      <h2>流程表管理 Flow Sheets</h2>
+      <p class="modal-sub">建立班程的開班資訊與課程流程表，供 LIFF 查看。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">流程表查看頁面的 LINE 連結 Flow sheet view page LINE link</span>
+        <span id="activity-flow-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">流程表管理頁面的 LINE 連結 Flow admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯流程表，功能與此後台相同</span></span>
+        <span id="activity-flow-admin-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">流程管理員 Flow Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的流程表管理頁面</span></span>
+        <button type="button" class="btn-text" id="manage-flow-admins-btn">管理 Manage</button>
+      </div>
+
+      <div class="table-wrap" style="margin-bottom: 14px;">
+        <table>
+          <thead>
+            <tr><th>班程名稱</th><th>期間</th><th>狀態</th><th style="text-align:right;">操作</th></tr>
+          </thead>
+          <tbody id="flow-list"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn-add-field" id="new-flow-btn">＋ 新增流程表 New Flow Sheet</button>
+
+      <div id="flow-form" style="display:none; border:1.5px solid var(--line); border-radius:10px; padding:16px; margin-top:14px;">
+        <input type="hidden" id="flow-editing-id" value="">
+        <div class="modal-field">
+          <label>班程名稱 Name</label>
+          <input type="text" id="flow-name" placeholder="例：辦事人員研習班">
+        </div>
+        <div class="field-row">
+          <div class="modal-field">
+            <label>主班人 Host <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="flow-host">
+          </div>
+          <div class="modal-field">
+            <label>操持 Facilitator <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="flow-facilitator">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="modal-field">
+            <label>開始日期 Start date</label>
+            <input type="date" id="flow-start-date">
+          </div>
+          <div class="modal-field">
+            <label>結束日期 End date</label>
+            <input type="date" id="flow-end-date">
+          </div>
+        </div>
+        <div class="modal-hint" id="flow-date-preview" style="background:var(--canvas); padding:10px 12px; border-radius:8px; line-height:1.7; margin:-6px 0 16px;"></div>
+        <div class="field-row">
+          <div class="modal-field">
+            <label>地點 Location <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="flow-location">
+          </div>
+          <div class="modal-field">
+            <label>地址 Address <span class="modal-hint" style="margin:0;">選填</span></label>
+            <input type="text" id="flow-address">
+          </div>
+        </div>
+
+        <div class="modal-field">
+          <label>課程流程 Schedule <span class="modal-hint" style="margin:0;">依日期分頁新增，會自動依時間排序</span></label>
+          <div class="tabs-row" id="flow-day-tabs" style="flex-wrap:wrap; margin-bottom:10px;"></div>
+          <div id="flow-item-list"></div>
+          <button type="button" class="btn-add-field" id="flow-add-item-btn">＋ 新增項目 Add item</button>
+        </div>
+
+        <div class="modal-field">
+          <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這個流程表</span></label>
+          <div class="group-checkbox-list" id="flow-group-checkboxes"></div>
+        </div>
+        <p class="modal-error" id="flow-error"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="flow-cancel-btn">取消</button>
+          <button type="button" class="btn-primary" id="flow-submit-btn">儲存 Save</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="flows-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="flow-admins-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>流程管理員 Flow Admins</h2>
+      <p class="modal-sub">只有在此名單中的 LINE 帳號，才能透過「流程表管理頁面的 LINE 連結」建立／編輯／刪除流程表。對方需先用 LINE 開啟過那個連結一次（就算沒有權限也會先建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="flow-admins-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增管理員 Search name or phone to add</label>
+        <input type="text" id="flow-admin-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="flow-admin-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="flow-admins-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div class="content" id="content-area">
     <!-- filled in by JS: either the table view, or a "no access" message -->
   </div>
@@ -773,6 +894,7 @@ async function enterDashboard() {
   document.getElementById('manage-events-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-tasks-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-groups-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-flows-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1530,6 +1652,535 @@ async function loadTasksAdminLiffStatus() {
 document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.remove('show');
 });
+
+/* =========================================================
+   ACTIVITY FLOW SHEETS (活動流程表)
+   ========================================================= */
+
+let allFlows = [];
+let flowEditingId = null;
+let flowFormItems = []; // { rowId, id, item_date, start_time, end_time, title }
+let flowItemRowCount = 0;
+let flowActiveDayStr = null;
+
+/* ---------- Dual-calendar date formatting (lunar-javascript) ---------- */
+
+const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const WEEKDAY_CN = ['日', '一', '二', '三', '四', '五', '六'];
+
+function formatRocYear(gregorianYear) {
+  const roc = gregorianYear - 1911;
+  return String(roc).split('').map(d => CN_DIGITS[parseInt(d, 10)]).join('');
+}
+function parseDateStr(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return { y, m, d };
+}
+function formatSolarLine(dateStr) {
+  if (!dateStr) return '';
+  const { y, m, d } = parseDateStr(dateStr);
+  const solar = Solar.fromYmd(y, m, d);
+  return `民國${formatRocYear(y)}年 ${m}月${d}日(國曆) 星期${WEEKDAY_CN[solar.getWeek()]}`;
+}
+function formatLunarLine(dateStr) {
+  if (!dateStr) return '';
+  const { y, m, d } = parseDateStr(dateStr);
+  const lunar = Solar.fromYmd(y, m, d).getLunar();
+  return `天運歲次${lunar.getYearInGanZhi()}年　${lunar.getMonthInChinese()}月　${lunar.getDayInChinese()}(農曆)`;
+}
+function formatShortDate(dateStr) {
+  if (!dateStr) return '';
+  const { y, m, d } = parseDateStr(dateStr);
+  const solar = Solar.fromYmd(y, m, d);
+  return `${m}/${d}(${WEEKDAY_CN[solar.getWeek()]})`;
+}
+function dateRange(startStr, endStr) {
+  const out = [];
+  if (!startStr || !endStr) return out;
+  const start = parseDateStr(startStr);
+  const end = parseDateStr(endStr);
+  const curDate = new Date(start.y, start.m - 1, start.d);
+  const endDate = new Date(end.y, end.m - 1, end.d);
+  while (curDate <= endDate) {
+    const y = curDate.getFullYear(), m = curDate.getMonth() + 1, d = curDate.getDate();
+    out.push(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    curDate.setDate(curDate.getDate() + 1);
+  }
+  return out;
+}
+
+document.getElementById('manage-flows-btn').addEventListener('click', () => {
+  document.getElementById('flows-modal').classList.add('show');
+  loadFlowSheets();
+  loadActivityFlowLiffStatus();
+  loadActivityFlowAdminLiffStatus();
+});
+document.getElementById('flows-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('flows-modal').classList.remove('show');
+});
+
+async function loadActivityFlowLiffStatus() {
+  const areaEl = document.getElementById('activity-flow-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'activity_flow').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-activity-flow-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-activity-flow-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '行功了愿表 Activity Flow');
+      if (result.ok) {
+        alert('已建立流程表查看頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadActivityFlowLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-activity-flow-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+async function loadActivityFlowAdminLiffStatus() {
+  const areaEl = document.getElementById('activity-flow-admin-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'activity_flow_admin').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-activity-flow-admin-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('activity_flow_admin', 'activity-flow-admin.html', '流程表管理 Flow Admin');
+      if (result.ok) {
+        alert('已建立流程表管理頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadActivityFlowAdminLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-admin-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+/* ---------- Flow list ---------- */
+
+async function loadFlowSheets() {
+  const { data, error } = await supabaseClient.from('activity_flows').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); return; }
+  allFlows = data || [];
+  renderFlowSheets();
+}
+
+function renderFlowSheets() {
+  const tbody = document.getElementById('flow-list');
+  if (allFlows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--ink-soft);">尚無流程表</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allFlows.map(f => `
+    <tr data-flow-id="${f.id}">
+      <td><strong>${escapeHtml(f.name)}</strong>${f.host ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">主班人 ${escapeHtml(f.host)}</div>` : ''}</td>
+      <td>${formatShortDate(f.start_date)} — ${formatShortDate(f.end_date)}</td>
+      <td>
+        <span class="status-select ${f.is_active ? 'confirmed' : 'cancelled'}" style="cursor:default;">
+          ${f.is_active ? '啟用中' : '已停用'}
+        </span>
+      </td>
+      <td style="text-align:right; white-space:nowrap;">
+        <button type="button" class="btn-text flow-edit-btn">編輯</button>
+        <button type="button" class="btn-text flow-toggle-btn">${f.is_active ? '停用' : '啟用'}</button>
+        <button type="button" class="btn-text flow-delete-btn" style="color:var(--red);">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.flow-edit-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.flowId;
+      await openFlowForm(allFlows.find(f => f.id === id));
+    });
+  });
+  tbody.querySelectorAll('.flow-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.flowId;
+      const f = allFlows.find(x => x.id === id);
+      const { error } = await supabaseClient.from('activity_flows').update({ is_active: !f.is_active }).eq('id', id);
+      if (error) { alert('更新失敗：' + error.message); return; }
+      await loadFlowSheets();
+    });
+  });
+  tbody.querySelectorAll('.flow-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.flowId;
+      const f = allFlows.find(x => x.id === id);
+      if (!confirm(`確定要刪除「${f.name}」嗎？這會一併刪除所有流程項目，且無法復原。`)) return;
+      const { error } = await supabaseClient.from('activity_flows').delete().eq('id', id);
+      if (error) { alert('刪除失敗：' + error.message); return; }
+      await loadFlowSheets();
+    });
+  });
+}
+
+document.getElementById('new-flow-btn').addEventListener('click', () => openFlowForm(null));
+
+/* ---------- Day tabs + item builder ---------- */
+
+function renderFlowDayTabs() {
+  const start = document.getElementById('flow-start-date').value;
+  const end = document.getElementById('flow-end-date').value;
+  const days = dateRange(start, end);
+  const tabsEl = document.getElementById('flow-day-tabs');
+
+  if (days.length === 0) {
+    tabsEl.innerHTML = '<span class="no-groups-note">請先選擇開始與結束日期</span>';
+    flowActiveDayStr = null;
+    renderFlowItemRows();
+    return;
+  }
+  if (!flowActiveDayStr || !days.includes(flowActiveDayStr)) flowActiveDayStr = days[0];
+
+  tabsEl.innerHTML = days.map((d, idx) => {
+    const count = flowFormItems.filter(it => it.item_date === d).length;
+    return `<button type="button" class="tabs-row-btn ${d === flowActiveDayStr ? 'active' : ''}" data-date="${d}">第${idx + 1}天 ${formatShortDate(d)}${count ? ' (' + count + ')' : ''}</button>`;
+  }).join('');
+  tabsEl.querySelectorAll('.tabs-row-btn').forEach(btn => {
+    btn.addEventListener('click', () => { flowActiveDayStr = btn.dataset.date; renderFlowDayTabs(); });
+  });
+
+  renderFlowItemRows();
+}
+
+function renderFlowItemRows() {
+  const listEl = document.getElementById('flow-item-list');
+  listEl.innerHTML = '';
+  if (!flowActiveDayStr) return;
+  listEl.innerHTML = '<div class="flow-item-row-labels"><span>開始</span><span>結束(選填)</span><span>項目內容</span><span></span></div>';
+  flowFormItems
+    .filter(it => it.item_date === flowActiveDayStr)
+    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
+    .forEach(it => appendFlowItemRowEl(it));
+}
+
+function appendFlowItemRowEl(item) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-item-row';
+  wrap.dataset.rowId = item.rowId;
+  wrap.innerHTML = `
+    <input type="time" class="fi-start" value="${item.start_time || ''}">
+    <input type="time" class="fi-end" value="${item.end_time || ''}">
+    <input type="text" class="fi-title" placeholder="例：早課" value="${escapeHtml(item.title || '')}">
+    <button type="button" class="remove-field-btn">✕</button>
+  `;
+  document.getElementById('flow-item-list').appendChild(wrap);
+
+  const sync = () => {
+    item.start_time = wrap.querySelector('.fi-start').value;
+    item.end_time = wrap.querySelector('.fi-end').value;
+    item.title = wrap.querySelector('.fi-title').value;
+  };
+  wrap.querySelector('.fi-start').addEventListener('change', sync);
+  wrap.querySelector('.fi-end').addEventListener('change', sync);
+  wrap.querySelector('.fi-title').addEventListener('input', sync);
+  wrap.querySelector('.remove-field-btn').addEventListener('click', () => {
+    flowFormItems = flowFormItems.filter(it => it.rowId !== item.rowId);
+    wrap.remove();
+    renderFlowDayTabs();
+  });
+}
+
+document.getElementById('flow-add-item-btn').addEventListener('click', () => {
+  if (!flowActiveDayStr) { alert('請先選擇開始與結束日期。'); return; }
+  const item = { rowId: 'fir-' + (flowItemRowCount++), id: null, item_date: flowActiveDayStr, start_time: '', end_time: '', title: '' };
+  flowFormItems.push(item);
+  appendFlowItemRowEl(item);
+  renderFlowDayTabs();
+});
+
+function updateFlowDatePreview() {
+  const start = document.getElementById('flow-start-date').value;
+  const el = document.getElementById('flow-date-preview');
+  if (!start) { el.textContent = '選擇開始日期後，將自動顯示農曆／國曆日期'; return; }
+  el.innerHTML = formatLunarLine(start) + '<br>' + formatSolarLine(start);
+}
+document.getElementById('flow-start-date').addEventListener('change', () => { updateFlowDatePreview(); renderFlowDayTabs(); });
+document.getElementById('flow-end-date').addEventListener('change', () => renderFlowDayTabs());
+
+function renderFlowGroupCheckboxes(checkedGroupIds) {
+  const wrap = document.getElementById('flow-group-checkboxes');
+  if (allGroups.length === 0) {
+    wrap.innerHTML = '<span class="no-groups-note">尚未建立任何群組，請先在「群組 Groups」中建立。</span>';
+    return;
+  }
+  wrap.innerHTML = allGroups.map(g => `
+    <label class="group-checkbox-chip ${checkedGroupIds.has(g.id) ? 'checked' : ''}">
+      <input type="checkbox" value="${g.id}" ${checkedGroupIds.has(g.id) ? 'checked' : ''}>
+      ${escapeHtml(g.name)}
+    </label>
+  `).join('');
+  wrap.querySelectorAll('.group-checkbox-chip input').forEach(cb => {
+    cb.addEventListener('change', () => cb.closest('.group-checkbox-chip').classList.toggle('checked', cb.checked));
+  });
+}
+
+async function openFlowForm(flow) {
+  document.getElementById('flow-form').style.display = 'block';
+  document.getElementById('flow-error').style.display = 'none';
+  document.getElementById('flow-editing-id').value = flow ? flow.id : '';
+  document.getElementById('flow-name').value = flow ? flow.name : '';
+  document.getElementById('flow-host').value = flow ? (flow.host || '') : '';
+  document.getElementById('flow-facilitator').value = flow ? (flow.facilitator || '') : '';
+  document.getElementById('flow-start-date').value = flow ? flow.start_date : '';
+  document.getElementById('flow-end-date').value = flow ? flow.end_date : '';
+  document.getElementById('flow-location').value = flow ? (flow.location || '') : '';
+  document.getElementById('flow-address').value = flow ? (flow.address || '') : '';
+  updateFlowDatePreview();
+
+  flowItemRowCount = 0;
+  flowFormItems = [];
+  if (flow) {
+    const { data: items } = await supabaseClient
+      .from('activity_flow_items')
+      .select('id, item_date, start_time, end_time, title')
+      .eq('flow_id', flow.id)
+      .order('item_date', { ascending: true })
+      .order('start_time', { ascending: true });
+    flowFormItems = (items || []).map(it => ({
+      rowId: 'fir-' + (flowItemRowCount++),
+      id: it.id,
+      item_date: it.item_date,
+      start_time: (it.start_time || '').slice(0, 5),
+      end_time: (it.end_time || '').slice(0, 5),
+      title: it.title,
+    }));
+  }
+  flowActiveDayStr = null;
+  renderFlowDayTabs();
+
+  await loadGroups();
+  let checkedGroupIds = new Set();
+  if (flow) {
+    const { data: fg } = await supabaseClient
+      .from('activity_flow_groups')
+      .select('group_id')
+      .eq('flow_id', flow.id);
+    checkedGroupIds = new Set((fg || []).map(r => r.group_id));
+  }
+  renderFlowGroupCheckboxes(checkedGroupIds);
+
+  flowEditingId = flow ? flow.id : null;
+}
+
+document.getElementById('flow-cancel-btn').addEventListener('click', () => {
+  document.getElementById('flow-form').style.display = 'none';
+});
+
+document.getElementById('flow-submit-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('flow-error');
+  errorEl.style.display = 'none';
+
+  const name = document.getElementById('flow-name').value.trim();
+  const start_date = document.getElementById('flow-start-date').value || null;
+  const end_date = document.getElementById('flow-end-date').value || null;
+
+  if (!name) { errorEl.textContent = '請填寫班程名稱。'; errorEl.style.display = 'block'; return; }
+  if (!start_date || !end_date) { errorEl.textContent = '請選擇開始與結束日期。'; errorEl.style.display = 'block'; return; }
+  if (start_date > end_date) { errorEl.textContent = '開始日期不能晚於結束日期。'; errorEl.style.display = 'block'; return; }
+
+  const items = flowFormItems
+    .filter(it => it.title && it.title.trim())
+    .map(it => ({ id: it.id, item_date: it.item_date, start_time: it.start_time, end_time: it.end_time || null, title: it.title.trim() }));
+
+  for (const it of items) {
+    if (!it.start_time) {
+      errorEl.textContent = `項目「${it.title}」缺少開始時間。`;
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (it.item_date < start_date || it.item_date > end_date) {
+      errorEl.textContent = `項目「${it.title}」的日期不在開班期間內。`;
+      errorEl.style.display = 'block';
+      return;
+    }
+  }
+
+  const payload = {
+    name,
+    host: document.getElementById('flow-host').value.trim() || null,
+    facilitator: document.getElementById('flow-facilitator').value.trim() || null,
+    location: document.getElementById('flow-location').value.trim() || null,
+    address: document.getElementById('flow-address').value.trim() || null,
+    start_date, end_date,
+  };
+
+  const submitBtn = document.getElementById('flow-submit-btn');
+  submitBtn.disabled = true;
+
+  let flowId = flowEditingId;
+  if (flowId) {
+    const { error } = await supabaseClient.from('activity_flows').update(payload).eq('id', flowId);
+    if (error) { submitBtn.disabled = false; errorEl.textContent = '儲存失敗：' + error.message; errorEl.style.display = 'block'; return; }
+  } else {
+    payload.is_active = true;
+    const { data, error } = await supabaseClient.from('activity_flows').insert(payload).select().single();
+    if (error) { submitBtn.disabled = false; errorEl.textContent = '儲存失敗：' + error.message; errorEl.style.display = 'block'; return; }
+    flowId = data.id;
+  }
+
+  // Sync schedule items: same diff pattern as subtasks — update rows
+  // that already had a DB id, insert new ones, delete removed ones.
+  const { data: existingItems } = await supabaseClient.from('activity_flow_items').select('id').eq('flow_id', flowId);
+  const existingIds = (existingItems || []).map(r => r.id);
+  const keptIds = items.filter(r => r.id).map(r => r.id);
+  const toDelete = existingIds.filter(id => !keptIds.includes(id));
+  if (toDelete.length > 0) {
+    await supabaseClient.from('activity_flow_items').delete().in('id', toDelete);
+  }
+  for (const row of items) {
+    const itemPayload = { item_date: row.item_date, start_time: row.start_time, end_time: row.end_time, title: row.title };
+    if (row.id) {
+      await supabaseClient.from('activity_flow_items').update(itemPayload).eq('id', row.id);
+    } else {
+      await supabaseClient.from('activity_flow_items').insert({ flow_id: flowId, ...itemPayload });
+    }
+  }
+
+  // Sync group links.
+  const checkedGroupIds = [...document.querySelectorAll('#flow-group-checkboxes input:checked')].map(cb => cb.value);
+  const { data: existingGroupLinks } = await supabaseClient.from('activity_flow_groups').select('group_id').eq('flow_id', flowId);
+  const existingGroupIds = (existingGroupLinks || []).map(r => r.group_id);
+  const toRemoveGroups = existingGroupIds.filter(id => !checkedGroupIds.includes(id));
+  const toAddGroups = checkedGroupIds.filter(id => !existingGroupIds.includes(id));
+  if (toRemoveGroups.length > 0) {
+    await supabaseClient.from('activity_flow_groups').delete().eq('flow_id', flowId).in('group_id', toRemoveGroups);
+  }
+  if (toAddGroups.length > 0) {
+    await supabaseClient.from('activity_flow_groups').insert(toAddGroups.map(group_id => ({ flow_id: flowId, group_id })));
+  }
+
+  submitBtn.disabled = false;
+  document.getElementById('flow-form').style.display = 'none';
+  await loadFlowSheets();
+});
+
+/* ---------- Flow admins modal ---------- */
+
+document.getElementById('manage-flow-admins-btn').addEventListener('click', () => {
+  document.getElementById('flow-admin-search-input').value = '';
+  document.getElementById('flow-admin-search-results').innerHTML = '';
+  document.getElementById('flow-admins-modal').classList.add('show');
+  loadFlowAdminsList();
+});
+document.getElementById('flow-admins-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('flow-admins-modal').classList.remove('show');
+});
+
+async function loadFlowAdminsList() {
+  const listEl = document.getElementById('flow-admins-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('activity_flow_admins')
+    .select('user_id, users ( display_name, phone )');
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無流程管理員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="fa-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.fa-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient.from('activity_flow_admins').delete().eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadFlowAdminsList();
+    });
+  });
+}
+
+let flowAdminSearchDebounce = null;
+document.getElementById('flow-admin-search-input').addEventListener('input', (e) => {
+  clearTimeout(flowAdminSearchDebounce);
+  const q = e.target.value.trim();
+  flowAdminSearchDebounce = setTimeout(() => runFlowAdminSearch(q), 300);
+});
+
+async function runFlowAdminSearch(query) {
+  const resultsEl = document.getElementById('flow-admin-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過流程表管理頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="fa-add-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.fa-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient.from('activity_flow_admins').insert({ user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadFlowAdminsList();
+    });
+  });
+}
 
 document.querySelectorAll('#tasks-tabs .tabs-row-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTasksTab(btn.dataset.tab));
