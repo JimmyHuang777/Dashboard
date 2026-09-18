@@ -1887,9 +1887,11 @@ function renderFlowItemRows() {
   listEl.innerHTML = '';
   if (!flowActiveDayStr) return;
   listEl.innerHTML = '<div class="flow-item-row-labels"><span>開始</span><span>結束(選填)</span><span>項目內容</span><span></span></div>';
+  // No auto-sort by time here — items render in the order they were
+  // added (or loaded), so a newly-added blank row appears at the
+  // bottom instead of jumping to the top while its time is empty.
   flowFormItems
     .filter(it => it.item_date === flowActiveDayStr)
-    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''))
     .forEach(it => appendFlowItemRowEl(it));
 }
 
@@ -1898,8 +1900,8 @@ function appendFlowItemRowEl(item) {
   wrap.className = 'flow-item-row';
   wrap.dataset.rowId = item.rowId;
   wrap.innerHTML = `
-    <input type="time" class="fi-start" value="${item.start_time || ''}">
-    <input type="time" class="fi-end" value="${item.end_time || ''}">
+    <input type="text" class="fi-start" placeholder="14:00" value="${escapeHtml(item.start_time || '')}">
+    <input type="text" class="fi-end" placeholder="14:50" value="${escapeHtml(item.end_time || '')}">
     <input type="text" class="fi-title" placeholder="例：早課" value="${escapeHtml(item.title || '')}">
     <button type="button" class="remove-field-btn">✕</button>
   `;
@@ -1972,10 +1974,10 @@ async function openFlowForm(flow) {
   if (flow) {
     const { data: items } = await supabaseClient
       .from('activity_flow_items')
-      .select('id, item_date, start_time, end_time, title')
+      .select('id, item_date, start_time, end_time, title, sort_order')
       .eq('flow_id', flow.id)
       .order('item_date', { ascending: true })
-      .order('start_time', { ascending: true });
+      .order('sort_order', { ascending: true });
     flowFormItems = (items || []).map(it => ({
       rowId: 'fir-' + (flowItemRowCount++),
       id: it.id,
