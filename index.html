@@ -2022,7 +2022,12 @@ async function loadHomeLiffStatus() {
    ========================================================= */
 
 const TRIP_STATUS_LABELS = {
-  not_started: '尚未出發', heading_to_pickup: '前往接送地中', arrived: '已抵達接送地', delivered: '已送達',
+  not_started: '尚未出發',
+  heading_to_pickup: '前往接送地中',
+  arrived_pickup: '已抵達接送地',
+  heading_to_destination: '正在前往目的地',
+  arrived_destination: '已抵達目的地',
+  idle: '待命中 Idle',
 };
 
 document.getElementById('manage-carpool-btn').addEventListener('click', () => {
@@ -2212,12 +2217,12 @@ async function loadCarpoolMatchingModal() {
   const [{ data: trips, error: tripsErr }, { data: requests, error: reqErr }] = await Promise.all([
     supabaseClient
       .from('car_trips')
-      .select('id, driver_user_id, available_date, available_time, departure_point, seats_total, notes, trip_status, created_at, users ( display_name, phone )')
+      .select('id, driver_user_id, available_date, available_time, departure_point, seats_total, notes, trip_status, created_at')
       .eq('event_id', carpoolMatchingEvent.id)
       .order('created_at', { ascending: true }),
     supabaseClient
       .from('ride_requests')
-      .select('id, status, pickup_area, notes, trip_id, created_at, users ( display_name, phone )')
+      .select('id, status, passenger_name, passenger_phone, pickup_area, destination, additional_passengers, notes, trip_id, created_at')
       .eq('event_id', carpoolMatchingEvent.id)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: true }),
@@ -2231,13 +2236,16 @@ async function loadCarpoolMatchingModal() {
   if (driverIds.length > 0) {
     const { data: profiles } = await supabaseClient
       .from('driver_profiles')
-      .select('user_id, car_brand, car_color, car_plate')
+      .select('user_id, contact_name, contact_phone, car_brand, car_color, car_plate')
       .in('user_id', driverIds);
     (profiles || []).forEach(p => { profileByDriver[p.user_id] = p; });
   }
 
   carpoolMatchingTrips = (trips || []).map(t => ({ ...t, profile: profileByDriver[t.driver_user_id] || null }));
-  carpoolMatchingRequests = requests || [];
+  carpoolMatchingRequests = (requests || []).map(r => ({
+    ...r,
+    passenger_count: 1 + (Array.isArray(r.additional_passengers) ? r.additional_passengers.length : 0),
+  }));
   renderCarpoolMatchingTrips();
   renderCarpoolMatchingRequests();
 }
@@ -2251,25 +2259,33 @@ function renderCarpoolMatchingTrips() {
 
   tripsEl.innerHTML = carpoolMatchingTrips.map(t => {
     const assigned = carpoolMatchingRequests.filter(r => r.trip_id === t.id && r.status === 'assigned');
-    const full = assigned.length >= t.seats_total;
+    const usedSeats = assigned.reduce((sum, r) => sum + (r.passenger_count || 1), 0);
+    const full = usedSeats >= t.seats_total;
     const meta = [t.available_date, t.available_time, t.departure_point].filter(Boolean).join('　');
     const carInfo = t.profile ? [t.profile.car_brand, t.profile.car_color, t.profile.car_plate].filter(Boolean).join('・') : '';
-    const passengerRows = assigned.map(r => `
+    const passengerRows = assigned.map(r => {
+      const names = [r.passenger_name || '—'].concat(r.additional_passengers || []).join('、');
+      return `
       <div class="assign-result-row">
-        <span>👤 ${escapeHtml(r.users?.display_name || '—')}　${escapeHtml(r.users?.phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}</span>
+        <span>👤 ${escapeHtml(names)}　${escapeHtml(r.passenger_phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}${r.destination ? '　🎯' + escapeHtml(r.destination) : ''}</span>
         <button type="button" class="cpm-unassign-btn" data-request-id="${r.id}" style="background:var(--canvas); color:var(--ink-soft);">取消配對</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
+    const idleBtn = t.trip_status === 'arrived_destination'
+      ? `<button type="button" class="btn-text cpm-idle-btn" data-trip-id="${t.id}" style="color:var(--blue);">標記為待命中 Mark idle</button>`
+      : '';
 
     return `
       <div class="assign-result-row" style="flex-direction:column; align-items:stretch; gap:8px;" data-trip-id="${t.id}">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-          <span><strong>${escapeHtml(t.users?.display_name || '—')}</strong>　${escapeHtml(t.users?.phone || '')}</span>
-          <span class="status-select ${full ? 'cancelled' : 'confirmed'}" style="cursor:default;">${assigned.length} / ${t.seats_total} 位</span>
+          <span><strong>${escapeHtml(t.profile?.contact_name || '—')}</strong>　${escapeHtml(t.profile?.contact_phone || '')}</span>
+          <span class="status-select ${full ? 'cancelled' : 'confirmed'}" style="cursor:default;">${usedSeats} / ${t.seats_total} 位</span>
         </div>
         <div style="font-size:12.5px; color:var(--ink-soft);">${escapeHtml(meta)}${carInfo ? '　🚘 ' + escapeHtml(carInfo) : ''}</div>
         <div style="font-size:12px; color:var(--ink-soft);">狀態：${TRIP_STATUS_LABELS[t.trip_status] || t.trip_status}</div>
         ${passengerRows ? `<div style="border-top:1px dashed var(--line); padding-top:6px;">${passengerRows}</div>` : ''}
         <div style="text-align:right;">
+          ${idleBtn}
           <button type="button" class="btn-text cpm-delete-trip-btn" data-trip-id="${t.id}" style="color:var(--red);">刪除此共乘</button>
         </div>
       </div>`;
@@ -2284,6 +2300,16 @@ function renderCarpoolMatchingTrips() {
         .update({ status: 'pending', trip_id: null, updated_at: new Date().toISOString() })
         .eq('id', requestId);
       if (error) { alert('取消配對失敗：' + error.message); btn.disabled = false; return; }
+      await loadCarpoolMatchingModal();
+    });
+  });
+
+  tripsEl.querySelectorAll('.cpm-idle-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const tripId = e.target.dataset.tripId;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('car_trips').update({ trip_status: 'idle' }).eq('id', tripId);
+      if (error) { alert('更新失敗：' + error.message); btn.disabled = false; return; }
       await loadCarpoolMatchingModal();
     });
   });
@@ -2313,15 +2339,20 @@ function renderCarpoolMatchingRequests() {
     return;
   }
 
-  const assignedCountFor = (tripId) => carpoolMatchingRequests.filter(r => r.trip_id === tripId && r.status === 'assigned').length;
-  const tripOptions = carpoolMatchingTrips
-    .filter(t => assignedCountFor(t.id) < t.seats_total)
-    .map(t => `<option value="${t.id}">${escapeHtml(t.users?.display_name || '—')}（尚有 ${t.seats_total - assignedCountFor(t.id)} 位）</option>`)
-    .join('');
+  const usedSeatsFor = (tripId) => carpoolMatchingRequests
+    .filter(r => r.trip_id === tripId && r.status === 'assigned')
+    .reduce((sum, r) => sum + (r.passenger_count || 1), 0);
 
-  reqEl.innerHTML = pending.map(r => `
+  reqEl.innerHTML = pending.map(r => {
+    const names = [r.passenger_name || '—'].concat(Array.isArray(r.additional_passengers) ? r.additional_passengers : []).join('、');
+    const tripOptions = carpoolMatchingTrips
+      .filter(t => usedSeatsFor(t.id) + (r.passenger_count || 1) <= t.seats_total)
+      .map(t => `<option value="${t.id}">${escapeHtml(t.profile?.contact_name || '—')}（尚有 ${t.seats_total - usedSeatsFor(t.id)} 位）</option>`)
+      .join('');
+
+    return `
     <div class="assign-result-row">
-      <span>👤 ${escapeHtml(r.users?.display_name || '—')}　${escapeHtml(r.users?.phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}</span>
+      <span>👤 ${escapeHtml(names)}　${escapeHtml(r.passenger_phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}${r.destination ? '　🎯' + escapeHtml(r.destination) : ''}</span>
       <span style="display:flex; gap:6px;">
         <select class="cpm-assign-select" data-request-id="${r.id}" style="font-size:12.5px;">
           <option value="">指派給司機…</option>
@@ -2330,7 +2361,8 @@ function renderCarpoolMatchingRequests() {
         <button type="button" class="cpm-delete-request-btn" data-request-id="${r.id}" style="background:var(--red-bg); color:var(--red);">刪除</button>
       </span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   reqEl.querySelectorAll('.cpm-assign-select').forEach(sel => {
     sel.addEventListener('change', async (e) => {
