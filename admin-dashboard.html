@@ -382,6 +382,7 @@
       <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
       <button class="btn-new-event" id="manage-home-btn" style="display:none; background:#0E9F6E;">入口連結 Home Link</button>
       <button class="btn-new-event" id="manage-carpool-btn" style="display:none; background:#F79009;">🚗 共乘 Carpool</button>
+      <button class="btn-new-event" id="manage-lodging-btn" style="display:none; background:#B4530F;">🏠 住宿 Lodging</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -462,7 +463,7 @@
         <table>
           <thead>
             <tr>
-              <th>活動名稱</th><th>日期</th><th>狀態</th><th>LINE 連結</th><th style="text-align:right;">操作</th>
+              <th>活動名稱</th><th>日期</th><th>狀態</th><th>服務 Services</th><th>LINE 連結</th><th style="text-align:right;">操作</th>
             </tr>
           </thead>
           <tbody id="manage-events-list"></tbody>
@@ -912,6 +913,71 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="lodging-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <h2>🏠 住宿 Lodging</h2>
+      <p class="modal-sub">獨立的住宿 LINE 連結，成員可在此登記為房東或房客申請住宿；住宿管理員可配對房東與房客。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">住宿頁面的 LINE 連結 Lodging page LINE link</span>
+        <span id="lodging-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">住宿管理員 Lodging Managers <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於活動管理員與共乘管理員的名單，只有在此名單中的帳號才能配對住宿</span></span>
+        <button type="button" class="btn-text" id="manage-lodging-managers-btn">管理 Manage</button>
+      </div>
+
+      <div style="font-size:14px; font-weight:700; margin-bottom:8px;">選擇活動查看住宿狀況 View lodging by event</div>
+      <div class="table-wrap" style="margin-bottom: 10px;">
+        <table>
+          <thead><tr><th>活動名稱</th><th>日期</th><th style="text-align:right;">操作</th></tr></thead>
+          <tbody id="lodging-event-list"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="lodging-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="lodging-managers-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>住宿管理員 Lodging Managers</h2>
+      <p class="modal-sub">只有在此名單中的 LINE 帳號，才能透過「住宿」LINE 連結以住宿管理員身分配對房東與房客。對方需先用 LINE 開啟過那個連結一次（就算沒有權限也會先建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="lodging-managers-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增管理員 Search name or phone to add</label>
+        <input type="text" id="lodging-manager-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="lodging-manager-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="lodging-managers-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="lodging-matching-modal">
+    <div class="modal-box" style="max-width: 640px;">
+      <h2>🏠 住宿配對<span id="lodging-matching-event-name" style="font-weight:400; font-size:14px; color:var(--ink-soft);"></span></h2>
+      <p class="modal-sub">將房客的住宿申請指派給有空位的房東。狀態由房東本人於手機上更新，此處僅供檢視。</p>
+
+      <div style="font-size:14px; font-weight:700; margin:16px 0 8px;">住宿房源 Hosts</div>
+      <div id="lodging-matching-offers-list"></div>
+
+      <div style="font-size:14px; font-weight:700; margin:20px 0 8px;">住宿申請 Lodging requests</div>
+      <div id="lodging-matching-requests-list"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="lodging-matching-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="flow-admins-modal">
     <div class="modal-box" style="max-width: 460px;">
       <h2>流程管理員 Flow Admins</h2>
@@ -1031,6 +1097,7 @@ async function enterDashboard() {
   document.getElementById('manage-flows-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-home-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-carpool-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-lodging-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1042,7 +1109,7 @@ async function enterDashboard() {
 }
 
 async function loadEvents() {
-  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id').order('event_date', { ascending: false });
+  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id, offers_transport, offers_lodging').order('event_date', { ascending: false });
 
   if (!isSuperAdmin) {
     const eventIds = myRoles.map(r => r.event_id).filter(Boolean);
@@ -1767,7 +1834,7 @@ function isValidLiffId(liffId) {
 function renderManageEventsList() {
   const tbody = document.getElementById('manage-events-list');
   if (!allEvents || allEvents.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--ink-soft);">尚無活動</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--ink-soft);">尚無活動</td></tr>';
     return;
   }
 
@@ -1779,6 +1846,10 @@ function renderManageEventsList() {
         <span class="status-select ${ev.is_active ? 'confirmed' : 'cancelled'}" style="cursor:default;">
           ${ev.is_active ? '啟用中' : '已停用'}
         </span>
+      </td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="status-select ${ev.offers_transport ? 'confirmed' : 'cancelled'} me-toggle-transport-btn" style="font-size:12px; padding:5px 8px; margin-right:4px;">🚗 交通${ev.offers_transport ? '：可' : '：否'}</button>
+        <button type="button" class="status-select ${ev.offers_lodging ? 'confirmed' : 'cancelled'} me-toggle-lodging-btn" style="font-size:12px; padding:5px 8px;">🏠 住宿${ev.offers_lodging ? '：可' : '：否'}</button>
       </td>
       <td>
         ${isValidLiffId(ev.liff_id)
@@ -1843,6 +1914,32 @@ function renderManageEventsList() {
       const newState = !ev.is_active;
       const { error } = await supabaseClient.from('events').update({ is_active: newState }).eq('id', eventId);
       if (error) { alert('更新失敗：' + error.message); return; }
+      await loadEvents();
+      renderManageEventsList();
+    });
+  });
+
+  tbody.querySelectorAll('.me-toggle-transport-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      const newState = !ev.offers_transport;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('events').update({ offers_transport: newState }).eq('id', eventId);
+      if (error) { alert('更新失敗：' + error.message); btn.disabled = false; return; }
+      await loadEvents();
+      renderManageEventsList();
+    });
+  });
+
+  tbody.querySelectorAll('.me-toggle-lodging-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      const newState = !ev.offers_lodging;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('events').update({ offers_lodging: newState }).eq('id', eventId);
+      if (error) { alert('更新失敗：' + error.message); btn.disabled = false; return; }
       await loadEvents();
       renderManageEventsList();
     });
@@ -2389,6 +2486,378 @@ function renderCarpoolMatchingRequests() {
       const { error } = await supabaseClient.from('ride_requests').delete().eq('id', requestId);
       if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
       await loadCarpoolMatchingModal();
+    });
+  });
+}
+
+/* =========================================================
+   LODGING (住宿) — same framework as Carpool above
+   ========================================================= */
+
+const LODGING_STATUS_LABELS = {
+  available: '可入住',
+  occupied: '已入住',
+};
+
+document.getElementById('manage-lodging-btn').addEventListener('click', () => {
+  document.getElementById('lodging-modal').classList.add('show');
+  loadLodgingLiffStatus();
+  renderLodgingEventList();
+});
+document.getElementById('lodging-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('lodging-modal').classList.remove('show');
+});
+
+async function loadLodgingLiffStatus() {
+  const areaEl = document.getElementById('lodging-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'lodging').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-lodging-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-lodging-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('lodging', 'lodging.html', '住宿 Lodging');
+      if (result.ok) {
+        alert('已建立住宿頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadLodgingLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-lodging-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-lodging-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+/* ---------- Lodging Managers (global permission list) ---------- */
+
+document.getElementById('manage-lodging-managers-btn').addEventListener('click', () => {
+  document.getElementById('lodging-manager-search-input').value = '';
+  document.getElementById('lodging-manager-search-results').innerHTML = '';
+  document.getElementById('lodging-managers-modal').classList.add('show');
+  loadLodgingManagersList();
+});
+document.getElementById('lodging-managers-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('lodging-managers-modal').classList.remove('show');
+});
+
+async function loadLodgingManagersList() {
+  const listEl = document.getElementById('lodging-managers-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('lodging_manager_admins')
+    .select('user_id, users ( display_name, phone )');
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無住宿管理員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="lm-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.lm-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient.from('lodging_manager_admins').delete().eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadLodgingManagersList();
+    });
+  });
+}
+
+let lodgingManagerSearchDebounce = null;
+document.getElementById('lodging-manager-search-input').addEventListener('input', (e) => {
+  clearTimeout(lodgingManagerSearchDebounce);
+  const q = e.target.value.trim();
+  lodgingManagerSearchDebounce = setTimeout(() => runLodgingManagerSearch(q), 300);
+});
+
+async function runLodgingManagerSearch(query) {
+  const resultsEl = document.getElementById('lodging-manager-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過住宿頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="lm-add-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.lm-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient.from('lodging_manager_admins').insert({ user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadLodgingManagersList();
+    });
+  });
+}
+
+/* ---------- Event picker (which event's lodging board to view) ---------- */
+
+function renderLodgingEventList() {
+  const tbody = document.getElementById('lodging-event-list');
+  if (!allEvents || allEvents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--ink-soft);">尚無活動</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allEvents.map(ev => `
+    <tr data-event-id="${ev.id}">
+      <td><strong>${escapeHtml(ev.name)}</strong></td>
+      <td>${ev.event_date || '—'}</td>
+      <td style="text-align:right;"><button type="button" class="btn-text lg-view-btn">查看住宿</button></td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.lg-view-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      openLodgingMatchingModal(ev);
+    });
+  });
+}
+
+/* ---------- Matching (offers + requests) for one event ---------- */
+
+let lodgingMatchingEvent = null;
+let lodgingMatchingOffers = [];
+let lodgingMatchingRequests = [];
+
+document.getElementById('lodging-matching-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('lodging-matching-modal').classList.remove('show');
+});
+
+function openLodgingMatchingModal(ev) {
+  lodgingMatchingEvent = ev;
+  document.getElementById('lodging-matching-event-name').textContent = '　—　' + ev.name;
+  document.getElementById('lodging-matching-modal').classList.add('show');
+  loadLodgingMatchingModal();
+}
+
+async function loadLodgingMatchingModal() {
+  const offersEl = document.getElementById('lodging-matching-offers-list');
+  const reqEl = document.getElementById('lodging-matching-requests-list');
+  offersEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+  reqEl.innerHTML = '';
+
+  const [{ data: offers, error: offersErr }, { data: requests, error: reqErr }] = await Promise.all([
+    supabaseClient
+      .from('lodging_offers')
+      .select('id, host_user_id, available_date, check_in_time, check_out_time, capacity_total, notes, offer_status, created_at')
+      .eq('event_id', lodgingMatchingEvent.id)
+      .order('created_at', { ascending: true }),
+    supabaseClient
+      .from('lodging_requests')
+      .select('id, status, guest_name, guest_phone, additional_guests, notes, offer_id, created_at')
+      .eq('event_id', lodgingMatchingEvent.id)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true }),
+  ]);
+
+  if (offersErr) { offersEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(offersErr.message) + '</div>'; return; }
+  if (reqErr) { reqEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(reqErr.message) + '</div>'; return; }
+
+  const hostIds = (offers || []).map(o => o.host_user_id);
+  let profileByHost = {};
+  if (hostIds.length > 0) {
+    const { data: profiles } = await supabaseClient
+      .from('host_profiles')
+      .select('user_id, contact_name, contact_phone, property_name, property_type, property_address')
+      .in('user_id', hostIds);
+    (profiles || []).forEach(p => { profileByHost[p.user_id] = p; });
+  }
+
+  lodgingMatchingOffers = (offers || []).map(o => ({ ...o, profile: profileByHost[o.host_user_id] || null }));
+  lodgingMatchingRequests = (requests || []).map(r => ({
+    ...r,
+    guest_count: 1 + (Array.isArray(r.additional_guests) ? r.additional_guests.length : 0),
+  }));
+  renderLodgingMatchingOffers();
+  renderLodgingMatchingRequests();
+}
+
+function renderLodgingMatchingOffers() {
+  const offersEl = document.getElementById('lodging-matching-offers-list');
+  if (lodgingMatchingOffers.length === 0) {
+    offersEl.innerHTML = '<div class="no-groups-note">目前尚無人提供住宿。</div>';
+    return;
+  }
+
+  offersEl.innerHTML = lodgingMatchingOffers.map(o => {
+    const assigned = lodgingMatchingRequests.filter(r => r.offer_id === o.id && r.status === 'assigned');
+    const usedCapacity = assigned.reduce((sum, r) => sum + (r.guest_count || 1), 0);
+    const full = usedCapacity >= o.capacity_total;
+    const timeRange = [o.check_in_time, o.check_out_time].filter(Boolean).join(' - ');
+    const meta = [o.available_date, timeRange].filter(Boolean).join('　');
+    const propertyInfo = o.profile ? [o.profile.property_name, o.profile.property_type].filter(Boolean).join('・') : '';
+    const guestRows = assigned.map(r => {
+      const names = [r.guest_name || '—'].concat(r.additional_guests || []).join('、');
+      return `
+      <div class="assign-result-row">
+        <span>👤 ${escapeHtml(names)}　${escapeHtml(r.guest_phone || '')}</span>
+        <button type="button" class="lgm-unassign-btn" data-request-id="${r.id}" style="background:var(--canvas); color:var(--ink-soft);">取消配對</button>
+      </div>`;
+    }).join('');
+    const availableBtn = o.offer_status === 'occupied'
+      ? `<button type="button" class="btn-text lgm-available-btn" data-offer-id="${o.id}" style="color:var(--blue);">標記為可入住 Mark available</button>`
+      : '';
+
+    return `
+      <div class="assign-result-row" style="flex-direction:column; align-items:stretch; gap:8px;" data-offer-id="${o.id}">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <span><strong>${escapeHtml(o.profile?.contact_name || '—')}</strong>　${escapeHtml(o.profile?.contact_phone || '')}</span>
+          <span class="status-select ${full ? 'cancelled' : 'confirmed'}" style="cursor:default;">${usedCapacity} / ${o.capacity_total} 位</span>
+        </div>
+        <div style="font-size:12.5px; color:var(--ink-soft);">${escapeHtml(meta)}${propertyInfo ? '　🏠 ' + escapeHtml(propertyInfo) : ''}</div>
+        <div style="font-size:12.5px; color:var(--ink-soft);">📍 房源地址：${escapeHtml(o.profile?.property_address || '—')}</div>
+        <div style="font-size:12px; color:var(--ink-soft);">狀態：${LODGING_STATUS_LABELS[o.offer_status] || o.offer_status}</div>
+        ${guestRows ? `<div style="border-top:1px dashed var(--line); padding-top:6px;">${guestRows}</div>` : ''}
+        <div style="text-align:right;">
+          ${availableBtn}
+          <button type="button" class="btn-text lgm-delete-offer-btn" data-offer-id="${o.id}" style="color:var(--red);">刪除此房源</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  offersEl.querySelectorAll('.lgm-unassign-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const requestId = e.target.dataset.requestId;
+      btn.disabled = true;
+      const { error } = await supabaseClient
+        .from('lodging_requests')
+        .update({ status: 'pending', offer_id: null, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+      if (error) { alert('取消配對失敗：' + error.message); btn.disabled = false; return; }
+      await loadLodgingMatchingModal();
+    });
+  });
+
+  offersEl.querySelectorAll('.lgm-available-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const offerId = e.target.dataset.offerId;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('lodging_offers').update({ offer_status: 'available' }).eq('id', offerId);
+      if (error) { alert('更新失敗：' + error.message); btn.disabled = false; return; }
+      await loadLodgingMatchingModal();
+    });
+  });
+
+  offersEl.querySelectorAll('.lgm-delete-offer-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const offerId = e.target.dataset.offerId;
+      if (!confirm('確定要刪除此住宿房源嗎？已配對的房客將被移回待配對。')) return;
+      btn.disabled = true;
+      await supabaseClient
+        .from('lodging_requests')
+        .update({ status: 'pending', offer_id: null, updated_at: new Date().toISOString() })
+        .eq('offer_id', offerId);
+      const { error } = await supabaseClient.from('lodging_offers').delete().eq('id', offerId);
+      if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
+      await loadLodgingMatchingModal();
+    });
+  });
+}
+
+function renderLodgingMatchingRequests() {
+  const reqEl = document.getElementById('lodging-matching-requests-list');
+  const pending = lodgingMatchingRequests.filter(r => r.status === 'pending');
+
+  if (pending.length === 0) {
+    reqEl.innerHTML = '<div class="no-groups-note">目前沒有待配對的住宿申請。</div>';
+    return;
+  }
+
+  const usedCapacityFor = (offerId) => lodgingMatchingRequests
+    .filter(r => r.offer_id === offerId && r.status === 'assigned')
+    .reduce((sum, r) => sum + (r.guest_count || 1), 0);
+
+  reqEl.innerHTML = pending.map(r => {
+    const names = [r.guest_name || '—'].concat(Array.isArray(r.additional_guests) ? r.additional_guests : []).join('、');
+    const offerOptions = lodgingMatchingOffers
+      .filter(o => usedCapacityFor(o.id) + (r.guest_count || 1) <= o.capacity_total)
+      .map(o => `<option value="${o.id}">${escapeHtml(o.profile?.contact_name || '—')}・${escapeHtml(o.profile?.property_name || '—')}（尚有 ${o.capacity_total - usedCapacityFor(o.id)} 位）</option>`)
+      .join('');
+
+    return `
+    <div class="assign-result-row">
+      <span>👤 ${escapeHtml(names)}　${escapeHtml(r.guest_phone || '')}</span>
+      <span style="display:flex; gap:6px;">
+        <select class="lgm-assign-select" data-request-id="${r.id}" style="font-size:12.5px;">
+          <option value="">指派給房東…</option>
+          ${offerOptions}
+        </select>
+        <button type="button" class="lgm-delete-request-btn" data-request-id="${r.id}" style="background:var(--red-bg); color:var(--red);">刪除</button>
+      </span>
+    </div>
+  `;
+  }).join('');
+
+  reqEl.querySelectorAll('.lgm-assign-select').forEach(sel => {
+    sel.addEventListener('change', async (e) => {
+      const offerId = e.target.value;
+      if (!offerId) return;
+      const requestId = e.target.dataset.requestId;
+      sel.disabled = true;
+      const { error } = await supabaseClient
+        .from('lodging_requests')
+        .update({ status: 'assigned', offer_id: offerId, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+      if (error) { alert('指派失敗：' + error.message); sel.disabled = false; return; }
+      await loadLodgingMatchingModal();
+    });
+  });
+
+  reqEl.querySelectorAll('.lgm-delete-request-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const requestId = e.target.dataset.requestId;
+      if (!confirm('確定要刪除此住宿申請嗎？')) return;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('lodging_requests').delete().eq('id', requestId);
+      if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
+      await loadLodgingMatchingModal();
     });
   });
 }
