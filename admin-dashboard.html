@@ -381,6 +381,7 @@
       <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
       <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
       <button class="btn-new-event" id="manage-home-btn" style="display:none; background:#0E9F6E;">入口連結 Home Link</button>
+      <button class="btn-new-event" id="manage-carpool-btn" style="display:none; background:#F79009;">🚗 共乘 Carpool</button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -846,6 +847,71 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="carpool-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <h2>🚗 共乘 Carpool</h2>
+      <p class="modal-sub">獨立的共乘 LINE 連結，成員可在此登記為司機或乘客申請共乘；共乘管理員可配對司機與乘客。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">共乘頁面的 LINE 連結 Carpool page LINE link</span>
+        <span id="carpool-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">共乘管理員 Car Managers <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於活動管理員的名單，只有在此名單中的帳號才能配對共乘</span></span>
+        <button type="button" class="btn-text" id="manage-car-managers-btn">管理 Manage</button>
+      </div>
+
+      <div style="font-size:14px; font-weight:700; margin-bottom:8px;">選擇活動查看共乘狀況 View carpool by event</div>
+      <div class="table-wrap" style="margin-bottom: 10px;">
+        <table>
+          <thead><tr><th>活動名稱</th><th>日期</th><th style="text-align:right;">操作</th></tr></thead>
+          <tbody id="carpool-event-list"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="carpool-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="car-managers-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>共乘管理員 Car Managers</h2>
+      <p class="modal-sub">只有在此名單中的 LINE 帳號，才能透過「共乘」LINE 連結以共乘管理員身分配對司機與乘客。對方需先用 LINE 開啟過那個連結一次（就算沒有權限也會先建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="car-managers-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增管理員 Search name or phone to add</label>
+        <input type="text" id="car-manager-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="car-manager-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="car-managers-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="carpool-matching-modal">
+    <div class="modal-box" style="max-width: 640px;">
+      <h2>🚗 共乘配對<span id="carpool-matching-event-name" style="font-weight:400; font-size:14px; color:var(--ink-soft);"></span></h2>
+      <p class="modal-sub">將乘客的共乘申請指派給有空位的司機。狀態由司機本人於手機上更新，此處僅供檢視。</p>
+
+      <div style="font-size:14px; font-weight:700; margin:16px 0 8px;">共乘司機 Drivers</div>
+      <div id="carpool-matching-trips-list"></div>
+
+      <div style="font-size:14px; font-weight:700; margin:20px 0 8px;">共乘申請 Ride requests</div>
+      <div id="carpool-matching-requests-list"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="carpool-matching-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="flow-admins-modal">
     <div class="modal-box" style="max-width: 460px;">
       <h2>流程管理員 Flow Admins</h2>
@@ -964,6 +1030,7 @@ async function enterDashboard() {
   document.getElementById('manage-groups-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-flows-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
   document.getElementById('manage-home-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('manage-carpool-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1947,6 +2014,348 @@ async function loadHomeLiffStatus() {
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
     }
+  });
+}
+
+/* =========================================================
+   CARPOOL (共乘)
+   ========================================================= */
+
+const TRIP_STATUS_LABELS = {
+  not_started: '尚未出發', heading_to_pickup: '前往接送地中', arrived: '已抵達接送地', delivered: '已送達',
+};
+
+document.getElementById('manage-carpool-btn').addEventListener('click', () => {
+  document.getElementById('carpool-modal').classList.add('show');
+  loadCarpoolLiffStatus();
+  renderCarpoolEventList();
+});
+document.getElementById('carpool-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('carpool-modal').classList.remove('show');
+});
+
+async function loadCarpoolLiffStatus() {
+  const areaEl = document.getElementById('carpool-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'carpool').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-carpool-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-carpool-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('carpool', 'carpool.html', '共乘 Carpool');
+      if (result.ok) {
+        alert('已建立共乘頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadCarpoolLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-carpool-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-carpool-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+/* ---------- Car Managers (global permission list) ---------- */
+
+document.getElementById('manage-car-managers-btn').addEventListener('click', () => {
+  document.getElementById('car-manager-search-input').value = '';
+  document.getElementById('car-manager-search-results').innerHTML = '';
+  document.getElementById('car-managers-modal').classList.add('show');
+  loadCarManagersList();
+});
+document.getElementById('car-managers-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('car-managers-modal').classList.remove('show');
+});
+
+async function loadCarManagersList() {
+  const listEl = document.getElementById('car-managers-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('car_manager_admins')
+    .select('user_id, users ( display_name, phone )');
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無共乘管理員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="cm-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.cm-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient.from('car_manager_admins').delete().eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadCarManagersList();
+    });
+  });
+}
+
+let carManagerSearchDebounce = null;
+document.getElementById('car-manager-search-input').addEventListener('input', (e) => {
+  clearTimeout(carManagerSearchDebounce);
+  const q = e.target.value.trim();
+  carManagerSearchDebounce = setTimeout(() => runCarManagerSearch(q), 300);
+});
+
+async function runCarManagerSearch(query) {
+  const resultsEl = document.getElementById('car-manager-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過共乘頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="cm-add-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.cm-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient.from('car_manager_admins').insert({ user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadCarManagersList();
+    });
+  });
+}
+
+/* ---------- Event picker (which event's carpool board to view) ---------- */
+
+function renderCarpoolEventList() {
+  const tbody = document.getElementById('carpool-event-list');
+  if (!allEvents || allEvents.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--ink-soft);">尚無活動</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allEvents.map(ev => `
+    <tr data-event-id="${ev.id}">
+      <td><strong>${escapeHtml(ev.name)}</strong></td>
+      <td>${ev.event_date || '—'}</td>
+      <td style="text-align:right;"><button type="button" class="btn-text cp-view-btn">查看共乘</button></td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.cp-view-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const eventId = e.target.closest('tr').dataset.eventId;
+      const ev = allEvents.find(x => x.id === eventId);
+      openCarpoolMatchingModal(ev);
+    });
+  });
+}
+
+/* ---------- Matching (trips + requests) for one event ---------- */
+
+let carpoolMatchingEvent = null;
+let carpoolMatchingTrips = [];
+let carpoolMatchingRequests = [];
+
+document.getElementById('carpool-matching-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('carpool-matching-modal').classList.remove('show');
+});
+
+function openCarpoolMatchingModal(ev) {
+  carpoolMatchingEvent = ev;
+  document.getElementById('carpool-matching-event-name').textContent = '　—　' + ev.name;
+  document.getElementById('carpool-matching-modal').classList.add('show');
+  loadCarpoolMatchingModal();
+}
+
+async function loadCarpoolMatchingModal() {
+  const tripsEl = document.getElementById('carpool-matching-trips-list');
+  const reqEl = document.getElementById('carpool-matching-requests-list');
+  tripsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+  reqEl.innerHTML = '';
+
+  const [{ data: trips, error: tripsErr }, { data: requests, error: reqErr }] = await Promise.all([
+    supabaseClient
+      .from('car_trips')
+      .select('id, driver_user_id, available_date, available_time, departure_point, seats_total, notes, trip_status, created_at, users ( display_name, phone )')
+      .eq('event_id', carpoolMatchingEvent.id)
+      .order('created_at', { ascending: true }),
+    supabaseClient
+      .from('ride_requests')
+      .select('id, status, pickup_area, notes, trip_id, created_at, users ( display_name, phone )')
+      .eq('event_id', carpoolMatchingEvent.id)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: true }),
+  ]);
+
+  if (tripsErr) { tripsEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(tripsErr.message) + '</div>'; return; }
+  if (reqErr) { reqEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(reqErr.message) + '</div>'; return; }
+
+  const driverIds = (trips || []).map(t => t.driver_user_id);
+  let profileByDriver = {};
+  if (driverIds.length > 0) {
+    const { data: profiles } = await supabaseClient
+      .from('driver_profiles')
+      .select('user_id, car_brand, car_color, car_plate')
+      .in('user_id', driverIds);
+    (profiles || []).forEach(p => { profileByDriver[p.user_id] = p; });
+  }
+
+  carpoolMatchingTrips = (trips || []).map(t => ({ ...t, profile: profileByDriver[t.driver_user_id] || null }));
+  carpoolMatchingRequests = requests || [];
+  renderCarpoolMatchingTrips();
+  renderCarpoolMatchingRequests();
+}
+
+function renderCarpoolMatchingTrips() {
+  const tripsEl = document.getElementById('carpool-matching-trips-list');
+  if (carpoolMatchingTrips.length === 0) {
+    tripsEl.innerHTML = '<div class="no-groups-note">目前尚無人提供共乘。</div>';
+    return;
+  }
+
+  tripsEl.innerHTML = carpoolMatchingTrips.map(t => {
+    const assigned = carpoolMatchingRequests.filter(r => r.trip_id === t.id && r.status === 'assigned');
+    const full = assigned.length >= t.seats_total;
+    const meta = [t.available_date, t.available_time, t.departure_point].filter(Boolean).join('　');
+    const carInfo = t.profile ? [t.profile.car_brand, t.profile.car_color, t.profile.car_plate].filter(Boolean).join('・') : '';
+    const passengerRows = assigned.map(r => `
+      <div class="assign-result-row">
+        <span>👤 ${escapeHtml(r.users?.display_name || '—')}　${escapeHtml(r.users?.phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}</span>
+        <button type="button" class="cpm-unassign-btn" data-request-id="${r.id}" style="background:var(--canvas); color:var(--ink-soft);">取消配對</button>
+      </div>`).join('');
+
+    return `
+      <div class="assign-result-row" style="flex-direction:column; align-items:stretch; gap:8px;" data-trip-id="${t.id}">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <span><strong>${escapeHtml(t.users?.display_name || '—')}</strong>　${escapeHtml(t.users?.phone || '')}</span>
+          <span class="status-select ${full ? 'cancelled' : 'confirmed'}" style="cursor:default;">${assigned.length} / ${t.seats_total} 位</span>
+        </div>
+        <div style="font-size:12.5px; color:var(--ink-soft);">${escapeHtml(meta)}${carInfo ? '　🚘 ' + escapeHtml(carInfo) : ''}</div>
+        <div style="font-size:12px; color:var(--ink-soft);">狀態：${TRIP_STATUS_LABELS[t.trip_status] || t.trip_status}</div>
+        ${passengerRows ? `<div style="border-top:1px dashed var(--line); padding-top:6px;">${passengerRows}</div>` : ''}
+        <div style="text-align:right;">
+          <button type="button" class="btn-text cpm-delete-trip-btn" data-trip-id="${t.id}" style="color:var(--red);">刪除此共乘</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  tripsEl.querySelectorAll('.cpm-unassign-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const requestId = e.target.dataset.requestId;
+      btn.disabled = true;
+      const { error } = await supabaseClient
+        .from('ride_requests')
+        .update({ status: 'pending', trip_id: null, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+      if (error) { alert('取消配對失敗：' + error.message); btn.disabled = false; return; }
+      await loadCarpoolMatchingModal();
+    });
+  });
+
+  tripsEl.querySelectorAll('.cpm-delete-trip-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const tripId = e.target.dataset.tripId;
+      if (!confirm('確定要刪除此共乘嗎？已配對的乘客將被移回待配對。')) return;
+      btn.disabled = true;
+      await supabaseClient
+        .from('ride_requests')
+        .update({ status: 'pending', trip_id: null, updated_at: new Date().toISOString() })
+        .eq('trip_id', tripId);
+      const { error } = await supabaseClient.from('car_trips').delete().eq('id', tripId);
+      if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
+      await loadCarpoolMatchingModal();
+    });
+  });
+}
+
+function renderCarpoolMatchingRequests() {
+  const reqEl = document.getElementById('carpool-matching-requests-list');
+  const pending = carpoolMatchingRequests.filter(r => r.status === 'pending');
+
+  if (pending.length === 0) {
+    reqEl.innerHTML = '<div class="no-groups-note">目前沒有待配對的共乘申請。</div>';
+    return;
+  }
+
+  const assignedCountFor = (tripId) => carpoolMatchingRequests.filter(r => r.trip_id === tripId && r.status === 'assigned').length;
+  const tripOptions = carpoolMatchingTrips
+    .filter(t => assignedCountFor(t.id) < t.seats_total)
+    .map(t => `<option value="${t.id}">${escapeHtml(t.users?.display_name || '—')}（尚有 ${t.seats_total - assignedCountFor(t.id)} 位）</option>`)
+    .join('');
+
+  reqEl.innerHTML = pending.map(r => `
+    <div class="assign-result-row">
+      <span>👤 ${escapeHtml(r.users?.display_name || '—')}　${escapeHtml(r.users?.phone || '')}${r.pickup_area ? '　📍' + escapeHtml(r.pickup_area) : ''}</span>
+      <span style="display:flex; gap:6px;">
+        <select class="cpm-assign-select" data-request-id="${r.id}" style="font-size:12.5px;">
+          <option value="">指派給司機…</option>
+          ${tripOptions}
+        </select>
+        <button type="button" class="cpm-delete-request-btn" data-request-id="${r.id}" style="background:var(--red-bg); color:var(--red);">刪除</button>
+      </span>
+    </div>
+  `).join('');
+
+  reqEl.querySelectorAll('.cpm-assign-select').forEach(sel => {
+    sel.addEventListener('change', async (e) => {
+      const tripId = e.target.value;
+      if (!tripId) return;
+      const requestId = e.target.dataset.requestId;
+      sel.disabled = true;
+      const { error } = await supabaseClient
+        .from('ride_requests')
+        .update({ status: 'assigned', trip_id: tripId, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+      if (error) { alert('指派失敗：' + error.message); sel.disabled = false; return; }
+      await loadCarpoolMatchingModal();
+    });
+  });
+
+  reqEl.querySelectorAll('.cpm-delete-request-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const requestId = e.target.dataset.requestId;
+      if (!confirm('確定要刪除此共乘申請嗎？')) return;
+      btn.disabled = true;
+      const { error } = await supabaseClient.from('ride_requests').delete().eq('id', requestId);
+      if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
+      await loadCarpoolMatchingModal();
+    });
   });
 }
 
