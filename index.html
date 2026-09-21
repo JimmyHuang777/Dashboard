@@ -510,6 +510,11 @@
         <span id="tasks-admin-liff-link-area"></span>
       </div>
 
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">單次任務頁面的 LINE 連結 One-time task page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">獨立連結，只顯示頻率為「單次 One-time」的工作範本，不影響上方的一般任務連結</span></span>
+        <span id="tasks-once-liff-link-area"></span>
+      </div>
+
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">工作管理員 Job Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的工作管理頁面</span></span>
         <button type="button" class="btn-text" id="manage-job-admins-btn">管理 Manage</button>
@@ -1983,6 +1988,7 @@ document.getElementById('manage-tasks-btn').addEventListener('click', () => {
   loadTaskTemplates();
   loadTasksLiffStatus();
   loadTasksAdminLiffStatus();
+  loadTasksOnceLiffStatus();
 });
 
 async function loadTasksLiffStatus() {
@@ -2050,6 +2056,48 @@ async function loadTasksAdminLiffStatus() {
   const link = 'https://liff.line.me/' + data.liff_id;
   areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-admin-liff-btn">複製連結 Copy link</button>';
   document.getElementById('copy-tasks-admin-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+// ---- Separate, independent LIFF link that shows ONLY templates with
+// recurrence 'once' (tasks-once.html) — a distinct purpose/link from
+// 'tasks' above, so it can be shared on its own without touching the
+// original Task Roster link or page. ----
+async function loadTasksOnceLiffStatus() {
+  const areaEl = document.getElementById('tasks-once-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks_once').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-once-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-tasks-once-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('tasks_once', 'tasks-once.html', '單次任務 One-time Tasks');
+      if (result.ok) {
+        alert('已建立單次任務頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadTasksOnceLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-once-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-tasks-once-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
       e.target.textContent = '已複製！';

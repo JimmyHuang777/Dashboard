@@ -381,8 +381,8 @@
       <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
       <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
       <button class="btn-new-event" id="manage-home-btn" style="display:none; background:#0E9F6E;">入口連結 Home Link</button>
-      <button class="btn-new-event" id="manage-carpool-btn" style="display:none; background:#F79009;">🚗 共乘 Carpool</button>
-      <button class="btn-new-event" id="manage-lodging-btn" style="display:none; background:#B4530F;">🏠 住宿 Lodging</button>
+      <button class="btn-new-event" id="manage-carpool-btn" style="display:none; background:#F79009;">🚗 共乘 Carpool<span id="carpool-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
+      <button class="btn-new-event" id="manage-lodging-btn" style="display:none; background:#B4530F;">🏠 住宿 Lodging<span id="lodging-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -508,6 +508,11 @@
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">工作管理頁面的 LINE 連結 Job admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯工作，功能與此後台相同</span></span>
         <span id="tasks-admin-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">單次任務頁面的 LINE 連結 One-time task page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">獨立連結，只顯示頻率為「單次 One-time」的工作範本，不影響上方的一般任務連結</span></span>
+        <span id="tasks-once-liff-link-area"></span>
       </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
@@ -1106,6 +1111,39 @@ async function enterDashboard() {
   }
 
   await loadEvents();
+
+  if (isSuperAdmin) {
+    refreshPendingBadges();
+    if (!pendingBadgePollTimer) {
+      pendingBadgePollTimer = setInterval(refreshPendingBadges, 20000);
+    }
+  }
+}
+
+// Shows a small red count badge on the Carpool / Lodging topbar
+// buttons for pending (unmatched) ride/lodging requests, so a super
+// admin glancing at the dashboard notices without opening either
+// modal. Polled every 20s while the dashboard is open — this is the
+// in-app half of the manager alert; the LINE push (sent the instant a
+// request comes in, from carpool-api/lodging-api) is the other half.
+let pendingBadgePollTimer = null;
+async function refreshPendingBadges() {
+  try {
+    const [carpoolRes, lodgingRes] = await Promise.all([
+      supabaseClient.from('ride_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabaseClient.from('lodging_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ]);
+    const carpoolBadge = document.getElementById('carpool-pending-badge');
+    const lodgingBadge = document.getElementById('lodging-pending-badge');
+    const carpoolCount = carpoolRes.count || 0;
+    const lodgingCount = lodgingRes.count || 0;
+    carpoolBadge.textContent = carpoolCount;
+    carpoolBadge.style.display = carpoolCount > 0 ? 'inline-block' : 'none';
+    lodgingBadge.textContent = lodgingCount;
+    lodgingBadge.style.display = lodgingCount > 0 ? 'inline-block' : 'none';
+  } catch (_err) {
+    // Badge is a convenience only — ignore failures silently.
+  }
 }
 
 async function loadEvents() {
@@ -1983,6 +2021,7 @@ document.getElementById('manage-tasks-btn').addEventListener('click', () => {
   loadTaskTemplates();
   loadTasksLiffStatus();
   loadTasksAdminLiffStatus();
+  loadTasksOnceLiffStatus();
 });
 
 async function loadTasksLiffStatus() {
@@ -2050,6 +2089,48 @@ async function loadTasksAdminLiffStatus() {
   const link = 'https://liff.line.me/' + data.liff_id;
   areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-admin-liff-btn">複製連結 Copy link</button>';
   document.getElementById('copy-tasks-admin-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+// ---- Separate, independent LIFF link that shows ONLY templates with
+// recurrence 'once' (tasks-once.html) — a distinct purpose/link from
+// 'tasks' above, so it can be shared on its own without touching the
+// original Task Roster link or page. ----
+async function loadTasksOnceLiffStatus() {
+  const areaEl = document.getElementById('tasks-once-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks_once').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-once-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-tasks-once-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('tasks_once', 'tasks-once.html', '單次任務 One-time Tasks');
+      if (result.ok) {
+        alert('已建立單次任務頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadTasksOnceLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-once-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-tasks-once-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
       e.target.textContent = '已複製！';
@@ -2134,6 +2215,7 @@ document.getElementById('manage-carpool-btn').addEventListener('click', () => {
 });
 document.getElementById('carpool-modal-close-btn').addEventListener('click', () => {
   document.getElementById('carpool-modal').classList.remove('show');
+  refreshPendingBadges();
 });
 
 async function loadCarpoolLiffStatus() {
@@ -2506,6 +2588,7 @@ document.getElementById('manage-lodging-btn').addEventListener('click', () => {
 });
 document.getElementById('lodging-modal-close-btn').addEventListener('click', () => {
   document.getElementById('lodging-modal').classList.remove('show');
+  refreshPendingBadges();
 });
 
 async function loadLodgingLiffStatus() {
