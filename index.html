@@ -1060,12 +1060,7 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員。天廚在獨立的 LINE 頁面管理菜單與食譜；佛堂／庶務則沿用「任務管理 Tasks」，各壇會自動建立專屬的群組可供選擇。</p>
-
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">天廚頁面的 LINE 連結 Kitchen page LINE link</span>
-        <span id="kitchen-liff-link-area"></span>
-      </div>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員，三組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務內容，與其他壇分開維護。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
@@ -3221,7 +3216,6 @@ const TEAM_LABELS = { kitchen: '天廚', shrine: '佛堂', general: '庶務' };
 
 document.getElementById('manage-altars-btn').addEventListener('click', () => {
   document.getElementById('altars-modal').classList.add('show');
-  loadKitchenLiffStatus();
   loadAltarsList();
 });
 document.getElementById('altars-modal-close-btn').addEventListener('click', () => {
@@ -3231,42 +3225,33 @@ document.getElementById('altar-detail-modal-close-btn').addEventListener('click'
   document.getElementById('altar-detail-modal').classList.remove('show');
 });
 
-async function loadKitchenLiffStatus() {
-  const areaEl = document.getElementById('kitchen-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'kitchen').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-kitchen-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-kitchen-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('kitchen', 'kitchen.html', '天廚 Kitchen');
-      if (result.ok) {
-        alert('已建立天廚頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadKitchenLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
+// Each altar gets its own real LIFF app (same mechanism as per-event
+// links) pointed at altar-hub.html?altar=<id>, so opening it lands
+// directly on that altar's own combined 天廚／佛堂／庶務 hub.
+async function createLiffForAltar(altarId, altarName) {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const res = await fetch(CREATE_LIFF_FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken: session.access_token, altar_id: altarId, name: altarName + ' 壇務' }),
     });
-    return;
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || '建立 LIFF 連結失敗');
+    return { ok: true, liffLink: result.liffLink, liffId: result.liffId };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
+}
 
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-kitchen-liff-btn">複製連結 Copy link</button>';
-  document.getElementById('copy-kitchen-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
+async function copyTextWithFallback(text, btn, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '已複製！';
+    setTimeout(() => { btn.textContent = label; }, 1500);
+  } catch (err) {
+    prompt('複製失敗，請手動複製以下連結：', text);
+  }
 }
 
 let allAltars = [];
@@ -3275,7 +3260,7 @@ async function loadAltarsList() {
   const listEl = document.getElementById('altars-list');
   listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
 
-  const { data, error } = await supabaseClient.from('altars').select('id, name').order('created_at', { ascending: true });
+  const { data, error } = await supabaseClient.from('altars').select('id, name, liff_id').order('created_at', { ascending: true });
   if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
   allAltars = data || [];
 
@@ -3286,11 +3271,15 @@ async function loadAltarsList() {
 
   listEl.innerHTML = `
     <table>
-      <thead><tr><th>壇名稱</th><th style="text-align:right;">操作</th></tr></thead>
+      <thead><tr><th>壇名稱</th><th>本壇 LINE 連結</th><th style="text-align:right;">操作</th></tr></thead>
       <tbody>
         ${allAltars.map(a => `
           <tr data-altar-id="${a.id}">
             <td><strong>${escapeHtml(a.name)}</strong></td>
+            <td>${a.liff_id
+              ? '<button type="button" class="btn-text altar-copy-liff-btn">複製連結 Copy link</button>'
+              : '<button type="button" class="btn-text altar-create-liff-btn" style="color:var(--blue);">建立連結 Create link</button>'
+            }</td>
             <td style="text-align:right; white-space:nowrap;">
               <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務</button>
               <button type="button" class="btn-text altar-rename-btn">重新命名</button>
@@ -3302,6 +3291,31 @@ async function loadAltarsList() {
     </table>
   `;
 
+  listEl.querySelectorAll('.altar-create-liff-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      const a = allAltars.find(x => x.id === id);
+      const b = e.target;
+      b.textContent = '建立中…';
+      b.disabled = true;
+      const result = await createLiffForAltar(a.id, a.name);
+      if (result.ok) {
+        alert(`已建立「${a.name}」的專屬 LINE 連結：\n${result.liffLink}\n\n請將此連結分享給該壇的天廚／佛堂／庶務組員，開啟後即進入本壇專屬頁面。`);
+        await loadAltarsList();
+      } else {
+        alert('建立失敗：' + result.error);
+        b.textContent = '建立連結 Create link';
+        b.disabled = false;
+      }
+    });
+  });
+  listEl.querySelectorAll('.altar-copy-liff-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      const a = allAltars.find(x => x.id === id);
+      copyTextWithFallback('https://liff.line.me/' + a.liff_id, e.target, '複製連結 Copy link');
+    });
+  });
   listEl.querySelectorAll('.altar-manage-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = e.target.closest('tr').dataset.altarId;
@@ -3414,6 +3428,20 @@ async function refreshAltarTeamList(altar, team) {
         .delete()
         .eq('altar_id', altar.id).eq('team', team).eq('user_id', userId);
       if (delErr) { alert('移除失敗：' + delErr.message); return; }
+
+      // Keep task_group_members in sync for 佛堂／庶務 — this altar's
+      // team group exists solely to scope this team's tasks, so
+      // leaving the team also means losing visibility of its tasks.
+      if (team === 'shrine' || team === 'general') {
+        const { data: grp } = await supabaseClient
+          .from('task_groups').select('id')
+          .eq('altar_id', altar.id).eq('team', team).maybeSingle();
+        if (grp) {
+          await supabaseClient.from('task_group_members').delete()
+            .eq('group_id', grp.id).eq('user_id', userId);
+        }
+      }
+
       await refreshAltarTeamList(altar, team);
     });
   });
@@ -3465,6 +3493,24 @@ async function runAltarTeamSearch(altar, team, query) {
         const { error: jobAdminErr } = await supabaseClient.from('task_job_admins').upsert({ user_id: userId });
         if (!jobAdminErr) {
           alert(`已將此人加入為${TEAM_LABELS[team]}組長，並同時加入「任務管理」管理員名單。\n\n請提醒對方在「任務管理」建立工作時，選擇限定「${altar.name}・${TEAM_LABELS[team]}」群組，工作才只會顯示給這個壇的${TEAM_LABELS[team]}組員。`);
+        }
+      }
+
+      // Keep task_group_members in sync for 佛堂／庶務 (both leader
+      // and member) — this is what actually grants visibility of the
+      // altar's scoped tasks in the Task system and in altar-hub.html,
+      // regardless of leader/member role.
+      if (team === 'shrine' || team === 'general') {
+        const { data: grp } = await supabaseClient
+          .from('task_groups').select('id')
+          .eq('altar_id', altar.id).eq('team', team).maybeSingle();
+        if (grp) {
+          const { error: gmErr } = await supabaseClient
+            .from('task_group_members')
+            .insert({ group_id: grp.id, user_id: userId });
+          if (gmErr && !gmErr.message.includes('duplicate')) {
+            console.error('task_group_members sync failed:', gmErr.message);
+          }
         }
       }
 
@@ -4879,15 +4925,22 @@ function renderGroupsList() {
     return;
   }
 
+  const systemNameById = (id) => {
+    if (!id) return '未分類';
+    const sys = allGroupSystems.find(s => s.id === id);
+    return sys ? sys.name : '未分類';
+  };
+
   const groupRowsHtml = (groupsInSystem) => `
     <table>
       <thead>
-        <tr><th>群組名稱</th><th>成員人數</th><th style="text-align:right;">操作</th></tr>
+        <tr><th>群組名稱</th><th>系統</th><th>成員人數</th><th style="text-align:right;">操作</th></tr>
       </thead>
       <tbody>
         ${groupsInSystem.map(g => `
           <tr data-group-id="${g.id}">
             <td><strong>${escapeHtml(g.name)}</strong></td>
+            <td style="color:var(--ink-soft);">${escapeHtml(systemNameById(g.system_id))}</td>
             <td>${g.member_count ?? 0}</td>
             <td style="text-align:right; white-space:nowrap;">
               <button type="button" class="btn-text grp-members-btn">管理成員</button>
@@ -4946,8 +4999,9 @@ function renderGroupsList() {
       const id = e.target.closest('tr').dataset.groupId;
       const g = allGroups.find(x => x.id === id);
       if (allGroupSystems.length === 0) { alert('請先建立至少一個系統。'); return; }
-      const options = allGroupSystems.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
-      const pick = prompt(`將「${g.name}」移到哪個系統？請輸入編號：\n${options}\n\n（輸入 0 表示不屬於任何系統）`);
+      const currentIdx = g.system_id ? (allGroupSystems.findIndex(s => s.id === g.system_id) + 1) : 0;
+      const options = allGroupSystems.map((s, i) => `${i + 1}. ${s.name}${s.id === g.system_id ? '　←目前' : ''}`).join('\n');
+      const pick = prompt(`將「${g.name}」移到哪個系統？請輸入編號：\n0. （不屬於任何系統）${currentIdx === 0 ? '　←目前' : ''}\n${options}`, String(currentIdx));
       if (pick === null) return;
       const idx = parseInt(pick.trim(), 10);
       if (Number.isNaN(idx) || idx < 0 || idx > allGroupSystems.length) { alert('輸入無效。'); return; }
