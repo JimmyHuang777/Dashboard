@@ -78,6 +78,24 @@
   }
   .btn-new-event:hover { background: #000; }
 
+  /* Topbar buttons grouped by system (道務運作系統 / 壇務運作系統 /
+     溝通共識系統), each a dropdown so the row doesn't keep growing
+     sideways as more features get added under a system. */
+  .topbar-dropdown { position: relative; display: inline-block; }
+  .dropdown-toggle::after { content: ' ▾'; font-size: 10px; }
+  .dropdown-menu {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14); min-width: 210px; padding: 6px; flex-direction: column; gap: 2px;
+  }
+  .dropdown-menu.show { display: flex; }
+  .dropdown-item {
+    display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+    padding: 9px 12px; border-radius: 8px; border: none; background: none;
+    font-size: 13.5px; font-weight: 600; color: var(--ink); cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .dropdown-item:hover { background: var(--canvas); }
+
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
     align-items: center; justify-content: center; z-index: 100; padding: 20px;
@@ -375,14 +393,31 @@
       <span class="role-badge" id="role-badge"></span>
     </div>
     <div class="topbar-right">
-      <button class="btn-new-event" id="new-event-btn" style="display:none;">+ 新增活動 New Event</button>
-      <button class="btn-new-event" id="manage-events-btn" style="display:none; background:var(--ink-soft);">管理活動 Manage</button>
-      <button class="btn-new-event" id="manage-tasks-btn" style="display:none; background:var(--blue);">任務管理 Tasks</button>
-      <button class="btn-new-event" id="manage-groups-btn" style="display:none; background:var(--amber);">群組 Groups</button>
-      <button class="btn-new-event" id="manage-flows-btn" style="display:none; background:#6B5FB4;">流程表 Flow Sheets</button>
-      <button class="btn-new-event" id="manage-home-btn" style="display:none; background:#0E9F6E;">入口連結 Home Link</button>
-      <button class="btn-new-event" id="manage-carpool-btn" style="display:none; background:#F79009;">🚗 共乘 Carpool</button>
-      <button class="btn-new-event" id="manage-lodging-btn" style="display:none; background:#B4530F;">🏠 住宿 Lodging</button>
+      <div class="topbar-dropdown" id="dao-affairs-dropdown">
+        <button type="button" class="btn-new-event dropdown-toggle" id="dao-affairs-toggle" style="display:none; background:#2E7D32;">道務運作系統</button>
+        <div class="dropdown-menu" id="dao-affairs-menu">
+          <button type="button" class="dropdown-item" id="new-event-btn">＋ 新增活動 New Event</button>
+          <button type="button" class="dropdown-item" id="manage-events-btn">管理活動 Manage</button>
+          <button type="button" class="dropdown-item" id="manage-tasks-btn">任務管理 Tasks</button>
+          <button type="button" class="dropdown-item" id="manage-groups-btn">群組 Groups</button>
+          <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
+          <button type="button" class="dropdown-item" id="manage-home-btn">入口連結 Home Link</button>
+        </div>
+      </div>
+      <div class="topbar-dropdown" id="tan-affairs-dropdown">
+        <button type="button" class="btn-new-event dropdown-toggle" id="tan-affairs-toggle" style="display:none; background:#B4530F;">壇務運作系統</button>
+        <div class="dropdown-menu" id="tan-affairs-menu">
+          <button type="button" class="dropdown-item" id="manage-altars-btn">⛩️ 壇 Altars（天廚／佛堂／庶務）</button>
+          <button type="button" class="dropdown-item" id="manage-carpool-btn">🚗 共乘 Carpool<span id="carpool-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
+          <button type="button" class="dropdown-item" id="manage-lodging-btn">🏠 住宿 Lodging<span id="lodging-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
+        </div>
+      </div>
+      <div class="topbar-dropdown" id="comm-dropdown">
+        <button type="button" class="btn-new-event dropdown-toggle" id="comm-toggle" style="display:none; background:#6B5FB4;">溝通共識系統</button>
+        <div class="dropdown-menu" id="comm-menu">
+          <button type="button" class="dropdown-item" id="manage-meetings-btn">🗣️ 溝通共識 Meetings</button>
+        </div>
+      </div>
       <select id="event-select"><option>載入活動中…</option></select>
       <span class="admin-email" id="admin-email-label"></span>
       <button class="btn-text" id="logout-btn">登出</button>
@@ -666,23 +701,22 @@
   </div>
 
   <div class="modal-overlay" id="groups-modal">
-    <div class="modal-box" style="max-width: 600px;">
+    <div class="modal-box" style="max-width: 640px;">
       <h2>群組管理 Groups</h2>
-      <p class="modal-sub">建立群組，並將工作範本限定給特定群組的人員才能看到。</p>
+      <p class="modal-sub">系統（例：道務運作系統）底下有數個群組（例：道務組），將工作範本／班程／活動限定給特定群組的人員才能看到。</p>
 
       <div class="group-create-row">
-        <input type="text" id="group-new-name" placeholder="新群組名稱，例：香燈組">
+        <input type="text" id="system-new-name" placeholder="新系統名稱，例：道務運作系統">
+        <button type="button" class="btn-new-event" id="system-create-btn" style="background:#6B5FB4;">＋ 新增系統</button>
+      </div>
+
+      <div class="group-create-row" style="margin-top:8px;">
+        <input type="text" id="group-new-name" placeholder="新群組名稱，例：香燈組" style="flex:1;">
+        <select id="group-new-system" style="flex:1;"></select>
         <button type="button" class="btn-new-event" id="group-create-btn">＋ 新增群組</button>
       </div>
 
-      <div class="table-wrap" style="margin-bottom: 14px;">
-        <table>
-          <thead>
-            <tr><th>群組名稱</th><th>成員人數</th><th style="text-align:right;">操作</th></tr>
-          </thead>
-          <tbody id="groups-list"></tbody>
-        </table>
-      </div>
+      <div id="groups-list-container" style="margin-top:14px; margin-bottom: 14px;"></div>
 
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="groups-modal-close-btn">關閉</button>
@@ -983,6 +1017,84 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="meetings-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <h2>🗣️ 溝通共識 Meetings</h2>
+      <p class="modal-sub">獨立的會議 LINE 連結，成員可查看受邀的會議、簽到、閱讀紀錄與待辦事項；會議管理員可在同一頁面管理會議類型並記錄出席／紀錄／待辦事項。實際的會議排程、出席記錄與紀錄都在 LINE 頁面中操作，此處僅管理連結與管理員名單。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">溝通共識頁面的 LINE 連結 Meetings page LINE link</span>
+        <span id="meetings-liff-link-area"></span>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">會議管理員 Meeting Admins <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於其他管理員的名單，只有在此名單中的帳號才能管理會議類型與記錄</span></span>
+        <button type="button" class="btn-text" id="manage-meeting-admins-btn">管理 Manage</button>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="meetings-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="meeting-admins-modal">
+    <div class="modal-box" style="max-width: 460px;">
+      <h2>會議管理員 Meeting Admins</h2>
+      <p class="modal-sub">只有在此名單中的 LINE 帳號，才能透過「溝通共識」LINE 連結以會議管理員身分管理會議類型、記錄出席與紀錄。對方需先用 LINE 開啟過那個連結一次（就算沒有權限也會先建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="meeting-admins-list" style="margin-bottom: 16px;"></div>
+
+      <div class="modal-field">
+        <label>搜尋姓名或電話以新增管理員 Search name or phone to add</label>
+        <input type="text" id="meeting-admin-search-input" placeholder="輸入姓名或電話…">
+      </div>
+      <div id="meeting-admin-search-results" style="max-height: 200px; overflow-y:auto;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="meeting-admins-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="altars-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <h2>⛩️ 壇 Altars</h2>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員。天廚在獨立的 LINE 頁面管理菜單與食譜；佛堂／庶務則沿用「任務管理 Tasks」，各壇會自動建立專屬的群組可供選擇。</p>
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
+        <span style="font-size:13px; color:var(--ink-soft);">天廚頁面的 LINE 連結 Kitchen page LINE link</span>
+        <span id="kitchen-liff-link-area"></span>
+      </div>
+
+      <div class="group-create-row">
+        <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
+        <button type="button" class="btn-new-event" id="altar-create-btn">＋ 新增壇</button>
+      </div>
+
+      <div id="altars-list" style="margin-top:14px; margin-bottom: 14px;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="altars-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="altar-detail-modal">
+    <div class="modal-box" style="max-width: 560px;">
+      <h2 id="altar-detail-title">壇</h2>
+      <p class="modal-sub">管理這個壇的天廚／佛堂／庶務組長與組員。對方需先用 LINE 開啟過天廚頁面連結一次（天廚組），或任一其他頁面連結（佛堂／庶務組，只是用來建立帳號資料），才能在下方搜尋到。</p>
+
+      <div id="altar-team-kitchen"></div>
+      <div id="altar-team-shrine" style="margin-top:20px;"></div>
+      <div id="altar-team-general" style="margin-top:20px;"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="altar-detail-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="flow-admins-modal">
     <div class="modal-box" style="max-width: 460px;">
       <h2>流程管理員 Flow Admins</h2>
@@ -1095,14 +1207,12 @@ async function enterDashboard() {
 
   myRoles = roles || [];
   isSuperAdmin = myRoles.some(r => r.role === 'super_admin');
-  document.getElementById('new-event-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-events-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-tasks-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-groups-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-flows-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-home-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-carpool-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
-  document.getElementById('manage-lodging-btn').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  // Individual buttons are always visible once their dropdown panel is
+  // open — what's gated per role is whether the dropdown's toggle
+  // button (and therefore the whole system's menu) shows at all.
+  document.getElementById('dao-affairs-toggle').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('tan-affairs-toggle').style.display = isSuperAdmin ? 'inline-block' : 'none';
+  document.getElementById('comm-toggle').style.display = isSuperAdmin ? 'inline-block' : 'none';
 
   if (myRoles.length === 0) {
     contentArea.innerHTML = `<div class="no-access"><div class="big">尚未指派權限</div><div>請聯繫系統管理員為您的帳號設定角色。</div></div>`;
@@ -1111,6 +1221,56 @@ async function enterDashboard() {
   }
 
   await loadEvents();
+
+  if (isSuperAdmin) {
+    refreshPendingBadges();
+    if (!pendingBadgePollTimer) {
+      pendingBadgePollTimer = setInterval(refreshPendingBadges, 20000);
+    }
+  }
+}
+
+/* ---------- Topbar system dropdowns (道務運作系統 / 壇務運作系統 /
+   溝通共識系統) ---------- */
+document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const menu = toggle.nextElementSibling;
+    const isOpen = menu.classList.contains('show');
+    document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+    if (!isOpen) menu.classList.add('show');
+  });
+});
+// Clicking anywhere else (including an item inside a menu, which
+// bubbles here after its own click handler runs) closes every menu.
+document.addEventListener('click', () => {
+  document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+});
+
+// Shows a small red count badge on the Carpool / Lodging topbar
+// buttons for pending (unmatched) ride/lodging requests, so a super
+// admin glancing at the dashboard notices without opening either
+// modal. Polled every 20s while the dashboard is open — this is the
+// in-app half of the manager alert; the LINE push (sent the instant a
+// request comes in, from carpool-api/lodging-api) is the other half.
+let pendingBadgePollTimer = null;
+async function refreshPendingBadges() {
+  try {
+    const [carpoolRes, lodgingRes] = await Promise.all([
+      supabaseClient.from('ride_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabaseClient.from('lodging_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ]);
+    const carpoolBadge = document.getElementById('carpool-pending-badge');
+    const lodgingBadge = document.getElementById('lodging-pending-badge');
+    const carpoolCount = carpoolRes.count || 0;
+    const lodgingCount = lodgingRes.count || 0;
+    carpoolBadge.textContent = carpoolCount;
+    carpoolBadge.style.display = carpoolCount > 0 ? 'inline-block' : 'none';
+    lodgingBadge.textContent = lodgingCount;
+    lodgingBadge.style.display = lodgingCount > 0 ? 'inline-block' : 'none';
+  } catch (_err) {
+    // Badge is a convenience only — ignore failures silently.
+  }
 }
 
 async function loadEvents() {
@@ -2182,6 +2342,7 @@ document.getElementById('manage-carpool-btn').addEventListener('click', () => {
 });
 document.getElementById('carpool-modal-close-btn').addEventListener('click', () => {
   document.getElementById('carpool-modal').classList.remove('show');
+  refreshPendingBadges();
 });
 
 async function loadCarpoolLiffStatus() {
@@ -2554,6 +2715,7 @@ document.getElementById('manage-lodging-btn').addEventListener('click', () => {
 });
 document.getElementById('lodging-modal-close-btn').addEventListener('click', () => {
   document.getElementById('lodging-modal').classList.remove('show');
+  refreshPendingBadges();
 });
 
 async function loadLodgingLiffStatus() {
@@ -2678,6 +2840,147 @@ async function runLodgingManagerSearch(query) {
         return;
       }
       await loadLodgingManagersList();
+    });
+  });
+}
+
+/* =========================================================
+   MEETINGS (溝通共識系統) — link + Meeting Admins list only.
+   The actual meeting types, instances, attendance and minutes
+   are all managed from the LINE page itself (meetings.html),
+   by whoever is in the meeting_admins list below.
+   ========================================================= */
+
+document.getElementById('manage-meetings-btn').addEventListener('click', () => {
+  document.getElementById('meetings-modal').classList.add('show');
+  loadMeetingsLiffStatus();
+});
+document.getElementById('meetings-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('meetings-modal').classList.remove('show');
+});
+
+async function loadMeetingsLiffStatus() {
+  const areaEl = document.getElementById('meetings-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'meetings').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-meetings-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-meetings-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('meetings', 'meetings.html', '溝通共識 Meetings');
+      if (result.ok) {
+        alert('已建立溝通共識頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadMeetingsLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-meetings-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-meetings-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+/* ---------- Meeting Admins (global permission list) ---------- */
+
+document.getElementById('manage-meeting-admins-btn').addEventListener('click', () => {
+  document.getElementById('meeting-admin-search-input').value = '';
+  document.getElementById('meeting-admin-search-results').innerHTML = '';
+  document.getElementById('meeting-admins-modal').classList.add('show');
+  loadMeetingAdminsList();
+});
+document.getElementById('meeting-admins-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('meeting-admins-modal').classList.remove('show');
+});
+
+async function loadMeetingAdminsList() {
+  const listEl = document.getElementById('meeting-admins-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient
+    .from('meeting_admins')
+    .select('user_id, users ( display_name, phone )');
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無會議管理員。</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}</span>
+      <button type="button" class="mtg-admin-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.mtg-admin-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient.from('meeting_admins').delete().eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await loadMeetingAdminsList();
+    });
+  });
+}
+
+let meetingAdminSearchDebounce = null;
+document.getElementById('meeting-admin-search-input').addEventListener('input', (e) => {
+  clearTimeout(meetingAdminSearchDebounce);
+  const q = e.target.value.trim();
+  meetingAdminSearchDebounce = setTimeout(() => runMeetingAdminSearch(q), 300);
+});
+
+async function runMeetingAdminSearch(query) {
+  const resultsEl = document.getElementById('meeting-admin-search-results');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過溝通共識頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <button type="button" class="mtg-admin-add-btn" data-user-id="${u.id}">加入</button>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.mtg-admin-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '加入中…';
+      const { error: insErr } = await supabaseClient.from('meeting_admins').insert({ user_id: userId });
+      if (insErr && !insErr.message.includes('duplicate')) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        btn.textContent = '加入';
+        return;
+      }
+      await loadMeetingAdminsList();
     });
   });
 }
@@ -2906,6 +3209,266 @@ function renderLodgingMatchingRequests() {
       const { error } = await supabaseClient.from('lodging_requests').delete().eq('id', requestId);
       if (error) { alert('刪除失敗：' + error.message); btn.disabled = false; return; }
       await loadLodgingMatchingModal();
+    });
+  });
+}
+
+/* =========================================================
+   ALTARS (壇) — 天廚／佛堂／庶務 per location.
+   ========================================================= */
+
+const TEAM_LABELS = { kitchen: '天廚', shrine: '佛堂', general: '庶務' };
+
+document.getElementById('manage-altars-btn').addEventListener('click', () => {
+  document.getElementById('altars-modal').classList.add('show');
+  loadKitchenLiffStatus();
+  loadAltarsList();
+});
+document.getElementById('altars-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('altars-modal').classList.remove('show');
+});
+document.getElementById('altar-detail-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('altar-detail-modal').classList.remove('show');
+});
+
+async function loadKitchenLiffStatus() {
+  const areaEl = document.getElementById('kitchen-liff-link-area');
+  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
+
+  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'kitchen').maybeSingle();
+
+  if (error || !data || !data.liff_id) {
+    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-kitchen-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
+    document.getElementById('create-kitchen-liff-btn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      btn.textContent = '建立中…';
+      btn.disabled = true;
+      const result = await createLiffGeneric('kitchen', 'kitchen.html', '天廚 Kitchen');
+      if (result.ok) {
+        alert('已建立天廚頁面的專屬 LINE 連結：\n' + result.liffLink);
+        loadKitchenLiffStatus();
+      } else {
+        alert('建立失敗：' + result.error);
+        btn.textContent = '建立連結 Create link';
+        btn.disabled = false;
+      }
+    });
+    return;
+  }
+
+  const link = 'https://liff.line.me/' + data.liff_id;
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-kitchen-liff-btn">複製連結 Copy link</button>';
+  document.getElementById('copy-kitchen-liff-btn').addEventListener('click', async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = '已複製！';
+      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
+    } catch (err) {
+      prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+}
+
+let allAltars = [];
+
+async function loadAltarsList() {
+  const listEl = document.getElementById('altars-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+
+  const { data, error } = await supabaseClient.from('altars').select('id, name').order('created_at', { ascending: true });
+  if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
+  allAltars = data || [];
+
+  if (allAltars.length === 0) {
+    listEl.innerHTML = '<div class="no-groups-note">尚無壇，請先新增。</div>';
+    return;
+  }
+
+  listEl.innerHTML = `
+    <table>
+      <thead><tr><th>壇名稱</th><th style="text-align:right;">操作</th></tr></thead>
+      <tbody>
+        ${allAltars.map(a => `
+          <tr data-altar-id="${a.id}">
+            <td><strong>${escapeHtml(a.name)}</strong></td>
+            <td style="text-align:right; white-space:nowrap;">
+              <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務</button>
+              <button type="button" class="btn-text altar-rename-btn">重新命名</button>
+              <button type="button" class="btn-text danger altar-delete-btn">刪除</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  listEl.querySelectorAll('.altar-manage-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      openAltarDetail(allAltars.find(a => a.id === id));
+    });
+  });
+  listEl.querySelectorAll('.altar-rename-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      const a = allAltars.find(x => x.id === id);
+      const newName = prompt('壇名稱：', a.name);
+      if (!newName || !newName.trim() || newName.trim() === a.name) return;
+      const { error: updErr } = await supabaseClient.from('altars').update({ name: newName.trim() }).eq('id', id);
+      if (updErr) { alert('重新命名失敗：' + updErr.message); return; }
+      await loadAltarsList();
+    });
+  });
+  listEl.querySelectorAll('.altar-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      const a = allAltars.find(x => x.id === id);
+      if (!confirm(`確定要刪除「${a.name}」嗎？\n\n此動作將一併刪除該壇的天廚食譜／菜單／工作，以及對應的任務群組（原本用該群組限定的工作範本會變回所有人可見）。`)) return;
+      const { error: delErr } = await supabaseClient.from('altars').delete().eq('id', id);
+      if (delErr) { alert('刪除失敗：' + delErr.message); return; }
+      await loadAltarsList();
+    });
+  });
+}
+
+document.getElementById('altar-create-btn').addEventListener('click', async () => {
+  const input = document.getElementById('altar-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const btn = document.getElementById('altar-create-btn');
+  btn.disabled = true;
+
+  const { data: altar, error } = await supabaseClient.from('altars').insert({ name }).select().single();
+  if (error) { alert('新增失敗：' + error.message); btn.disabled = false; return; }
+
+  // Auto-create this altar's 天廚／佛堂／庶務 task_groups, same as
+  // 31-org-systems.sql did for 本堂, so 佛堂/庶務 templates can be
+  // scoped to this altar right away.
+  const teamRows = [
+    { name: name + '・天廚', altar_id: altar.id, team: 'kitchen' },
+    { name: name + '・佛堂', altar_id: altar.id, team: 'shrine' },
+    { name: name + '・庶務', altar_id: altar.id, team: 'general' },
+  ];
+  const { error: groupErr } = await supabaseClient.from('task_groups').insert(teamRows);
+  if (groupErr) { alert('壇已建立，但建立群組時發生錯誤：' + groupErr.message); }
+
+  input.value = '';
+  btn.disabled = false;
+  await loadAltarsList();
+});
+
+/* ---------- Altar detail: 3 team rosters ---------- */
+
+function openAltarDetail(altar) {
+  document.getElementById('altar-detail-title').textContent = '⛩️ ' + altar.name;
+  ['kitchen', 'shrine', 'general'].forEach(team => renderAltarTeamSection(altar, team));
+  document.getElementById('altar-detail-modal').classList.add('show');
+}
+
+async function renderAltarTeamSection(altar, team) {
+  const container = document.getElementById('altar-team-' + team);
+  const label = TEAM_LABELS[team];
+  container.innerHTML = `
+    <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${label}${team !== 'kitchen' ? '　<span style="font-weight:400; font-size:12px; color:var(--ink-soft);">（沿用任務管理，組長需另外在「任務管理」建立限定「' + escapeHtml(altar.name) + '・' + label + '」群組的工作）</span>' : ''}</div>
+    <div id="altar-team-${team}-list" style="margin-bottom:10px;">載入中…</div>
+    <div class="modal-field">
+      <label>搜尋姓名或電話以新增${label}人員</label>
+      <input type="text" id="altar-team-${team}-search" placeholder="輸入姓名或電話…">
+    </div>
+    <div id="altar-team-${team}-results" style="max-height:160px; overflow-y:auto;"></div>
+  `;
+
+  await refreshAltarTeamList(altar, team);
+
+  let debounce = null;
+  document.getElementById(`altar-team-${team}-search`).addEventListener('input', (e) => {
+    clearTimeout(debounce);
+    const q = e.target.value.trim();
+    debounce = setTimeout(() => runAltarTeamSearch(altar, team, q), 300);
+  });
+}
+
+async function refreshAltarTeamList(altar, team) {
+  const listEl = document.getElementById(`altar-team-${team}-list`);
+  const { data, error } = await supabaseClient
+    .from('altar_team_members')
+    .select('user_id, role, users ( display_name, phone )')
+    .eq('altar_id', altar.id)
+    .eq('team', team);
+
+  if (error) { listEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { listEl.innerHTML = '<div class="no-groups-note">尚無人員。</div>'; return; }
+
+  listEl.innerHTML = data.map(m => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(m.users?.display_name || '—')}　${escapeHtml(m.users?.phone || '')}　${m.role === 'leader' ? '<strong>（組長）</strong>' : '（組員）'}</span>
+      <button type="button" class="altar-team-remove-btn" data-user-id="${m.user_id}" style="background:var(--red-bg); color:var(--red);">移除</button>
+    </div>
+  `).join('');
+
+  listEl.querySelectorAll('.altar-team-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const { error: delErr } = await supabaseClient
+        .from('altar_team_members')
+        .delete()
+        .eq('altar_id', altar.id).eq('team', team).eq('user_id', userId);
+      if (delErr) { alert('移除失敗：' + delErr.message); return; }
+      await refreshAltarTeamList(altar, team);
+    });
+  });
+}
+
+async function runAltarTeamSearch(altar, team, query) {
+  const resultsEl = document.getElementById(`altar-team-${team}-results`);
+  if (!query) { resultsEl.innerHTML = ''; return; }
+
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('id, display_name, phone')
+    .or(`display_name.ilike.%${query}%,phone.ilike.%${query}%`)
+    .limit(15);
+
+  if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過任一頁面連結一次）。</div>'; return; }
+
+  resultsEl.innerHTML = data.map(u => `
+    <div class="assign-result-row">
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
+      <span>
+        <button type="button" class="altar-team-add-btn" data-user-id="${u.id}" data-role="member">加入為組員</button>
+        <button type="button" class="altar-team-add-btn" data-user-id="${u.id}" data-role="leader">加入為組長</button>
+      </span>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.altar-team-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const userId = e.target.dataset.userId;
+      const role = e.target.dataset.role;
+      btn.disabled = true;
+      const { error: insErr } = await supabaseClient
+        .from('altar_team_members')
+        .upsert({ altar_id: altar.id, team, user_id: userId, role }, { onConflict: 'altar_id,team,user_id' });
+      if (insErr) {
+        alert('加入失敗：' + insErr.message);
+        btn.disabled = false;
+        return;
+      }
+
+      // 佛堂／庶務 reuse the Task system, which is gated by the
+      // single global task_job_admins list (no per-altar scoping
+      // there) — so a leader also needs to be a Job Admin to
+      // actually manage tasks. Kitchen doesn't need this: kitchen-api
+      // checks altar_team_members directly.
+      if (role === 'leader' && (team === 'shrine' || team === 'general')) {
+        const { error: jobAdminErr } = await supabaseClient.from('task_job_admins').upsert({ user_id: userId });
+        if (!jobAdminErr) {
+          alert(`已將此人加入為${TEAM_LABELS[team]}組長，並同時加入「任務管理」管理員名單。\n\n請提醒對方在「任務管理」建立工作時，選擇限定「${altar.name}・${TEAM_LABELS[team]}」群組，工作才只會顯示給這個壇的${TEAM_LABELS[team]}組員。`);
+        }
+      }
+
+      await refreshAltarTeamList(altar, team);
     });
   });
 }
@@ -4270,6 +4833,8 @@ async function runAssignSearch(query) {
    Groups (Super Admin only)
    ========================================================= */
 
+let allGroupSystems = [];
+
 document.getElementById('manage-groups-btn').addEventListener('click', () => {
   document.getElementById('groups-modal').classList.add('show');
   loadGroups().then(renderGroupsList);
@@ -4279,7 +4844,10 @@ document.getElementById('groups-modal-close-btn').addEventListener('click', () =
 });
 
 async function loadGroups() {
-  const { data: groups, error } = await supabaseClient.from('task_groups').select('id, name').order('created_at', { ascending: true });
+  const { data: systems, error: sysErr } = await supabaseClient.from('group_systems').select('id, name').order('created_at', { ascending: true });
+  if (sysErr) { console.error(sysErr); allGroupSystems = []; } else { allGroupSystems = systems || []; }
+
+  const { data: groups, error } = await supabaseClient.from('task_groups').select('id, name, system_id').order('created_at', { ascending: true });
   if (error) { console.error(error); allGroups = []; return; }
   allGroups = groups || [];
 
@@ -4292,35 +4860,76 @@ async function loadGroups() {
       g.member_count = (members || []).filter(m => m.group_id === g.id).length;
     });
   }
+
+  // Keep the "new group" system picker in sync.
+  const sel = document.getElementById('group-new-system');
+  if (sel) {
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">（不屬於任何系統）</option>' + allGroupSystems.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+    if (prev && allGroupSystems.some(s => s.id === prev)) sel.value = prev;
+  }
 }
 
 function renderGroupsList() {
-  const tbody = document.getElementById('groups-list');
-  if (!tbody) return;
+  const container = document.getElementById('groups-list-container');
+  if (!container) return;
+
   if (allGroups.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--ink-soft);">尚無群組</td></tr>';
+    container.innerHTML = '<p style="text-align:center; color:var(--ink-soft); padding:12px 0;">尚無群組</p>';
     return;
   }
-  tbody.innerHTML = allGroups.map(g => `
-    <tr data-group-id="${g.id}">
-      <td><strong>${escapeHtml(g.name)}</strong></td>
-      <td>${g.member_count ?? 0}</td>
-      <td style="text-align:right; white-space:nowrap;">
-        <button type="button" class="btn-text grp-members-btn">管理成員</button>
-        <button type="button" class="btn-text grp-rename-btn">重新命名</button>
-        <button type="button" class="btn-text grp-delete-btn" style="color:var(--red);">刪除</button>
-      </td>
-    </tr>
-  `).join('');
 
-  tbody.querySelectorAll('.grp-members-btn').forEach(btn => {
+  const groupRowsHtml = (groupsInSystem) => `
+    <table>
+      <thead>
+        <tr><th>群組名稱</th><th>成員人數</th><th style="text-align:right;">操作</th></tr>
+      </thead>
+      <tbody>
+        ${groupsInSystem.map(g => `
+          <tr data-group-id="${g.id}">
+            <td><strong>${escapeHtml(g.name)}</strong></td>
+            <td>${g.member_count ?? 0}</td>
+            <td style="text-align:right; white-space:nowrap;">
+              <button type="button" class="btn-text grp-members-btn">管理成員</button>
+              <button type="button" class="btn-text grp-move-btn">移動系統</button>
+              <button type="button" class="btn-text grp-rename-btn">重新命名</button>
+              <button type="button" class="btn-text grp-delete-btn" style="color:var(--red);">刪除</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  const sections = allGroupSystems.map(sys => {
+    const groupsInSystem = allGroups.filter(g => g.system_id === sys.id);
+    if (groupsInSystem.length === 0) return '';
+    return `
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:700; color:#6B5FB4; margin-bottom:6px;">🗂️ ${escapeHtml(sys.name)}</div>
+        <div class="table-wrap">${groupRowsHtml(groupsInSystem)}</div>
+      </div>
+    `;
+  }).join('');
+
+  const unassigned = allGroups.filter(g => !g.system_id || !allGroupSystems.some(s => s.id === g.system_id));
+  const unassignedHtml = unassigned.length === 0 ? '' : `
+    <div style="margin-bottom:16px;">
+      <div style="font-weight:700; color:var(--ink-soft); margin-bottom:6px;">未分類 Unassigned</div>
+      <div class="table-wrap">${groupRowsHtml(unassigned)}</div>
+    </div>
+  `;
+
+  container.innerHTML = sections + unassignedHtml;
+
+  container.querySelectorAll('.grp-members-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = e.target.closest('tr').dataset.groupId;
       const g = allGroups.find(x => x.id === id);
       openGroupMembersModal(g.id, g.name);
     });
   });
-  tbody.querySelectorAll('.grp-rename-btn').forEach(btn => {
+  container.querySelectorAll('.grp-rename-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const id = e.target.closest('tr').dataset.groupId;
       const g = allGroups.find(x => x.id === id);
@@ -4332,7 +4941,24 @@ function renderGroupsList() {
       renderGroupsList();
     });
   });
-  tbody.querySelectorAll('.grp-delete-btn').forEach(btn => {
+  container.querySelectorAll('.grp-move-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.groupId;
+      const g = allGroups.find(x => x.id === id);
+      if (allGroupSystems.length === 0) { alert('請先建立至少一個系統。'); return; }
+      const options = allGroupSystems.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
+      const pick = prompt(`將「${g.name}」移到哪個系統？請輸入編號：\n${options}\n\n（輸入 0 表示不屬於任何系統）`);
+      if (pick === null) return;
+      const idx = parseInt(pick.trim(), 10);
+      if (Number.isNaN(idx) || idx < 0 || idx > allGroupSystems.length) { alert('輸入無效。'); return; }
+      const newSystemId = idx === 0 ? null : allGroupSystems[idx - 1].id;
+      const { error } = await supabaseClient.from('task_groups').update({ system_id: newSystemId }).eq('id', id);
+      if (error) { alert('移動失敗：' + error.message); return; }
+      await loadGroups();
+      renderGroupsList();
+    });
+  });
+  container.querySelectorAll('.grp-delete-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const id = e.target.closest('tr').dataset.groupId;
       const g = allGroups.find(x => x.id === id);
@@ -4345,13 +4971,28 @@ function renderGroupsList() {
   });
 }
 
+document.getElementById('system-create-btn').addEventListener('click', async () => {
+  const input = document.getElementById('system-new-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const btn = document.getElementById('system-create-btn');
+  btn.disabled = true;
+  const { error } = await supabaseClient.from('group_systems').insert({ name });
+  btn.disabled = false;
+  if (error) { alert('新增失敗：' + error.message); return; }
+  input.value = '';
+  await loadGroups();
+  renderGroupsList();
+});
+
 document.getElementById('group-create-btn').addEventListener('click', async () => {
   const input = document.getElementById('group-new-name');
   const name = input.value.trim();
   if (!name) return;
+  const systemId = document.getElementById('group-new-system').value || null;
   const btn = document.getElementById('group-create-btn');
   btn.disabled = true;
-  const { error } = await supabaseClient.from('task_groups').insert({ name });
+  const { error } = await supabaseClient.from('task_groups').insert({ name, system_id: systemId });
   btn.disabled = false;
   if (error) { alert('新增失敗：' + error.message); return; }
   input.value = '';
