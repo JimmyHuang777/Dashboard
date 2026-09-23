@@ -407,7 +407,7 @@
       <div class="topbar-dropdown" id="tan-affairs-dropdown">
         <button type="button" class="btn-new-event dropdown-toggle" id="tan-affairs-toggle" style="display:none; background:#B4530F;">壇務運作系統</button>
         <div class="dropdown-menu" id="tan-affairs-menu">
-          <button type="button" class="dropdown-item" id="manage-altars-btn">⛩️ 壇 Altars（天廚／佛堂／庶務）</button>
+          <button type="button" class="dropdown-item" id="manage-altars-btn">⛩️ 壇 Altars（天廚／佛堂／庶務／住壇）</button>
           <button type="button" class="dropdown-item" id="manage-carpool-btn">🚗 共乘 Carpool<span id="carpool-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
           <button type="button" class="dropdown-item" id="manage-lodging-btn">🏠 住宿 Lodging<span id="lodging-pending-badge" style="display:none; margin-left:6px; background:#D92D20; color:#fff; border-radius:10px; padding:1px 7px; font-size:11.5px; font-weight:700;"></span></button>
         </div>
@@ -718,6 +718,8 @@
         <input type="text" id="system-new-name" placeholder="新系統名稱，例：道務運作系統">
         <button type="button" class="btn-new-event" id="system-create-btn" style="background:#6B5FB4;">＋ 新增系統</button>
       </div>
+
+      <div id="systems-manage-list" style="margin-top:8px;"></div>
 
       <div class="group-create-row" style="margin-top:8px;">
         <input type="text" id="group-new-name" placeholder="新群組名稱，例：香燈組" style="flex:1;">
@@ -1074,7 +1076,7 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員，三組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務內容，與其他壇分開維護。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
@@ -1093,11 +1095,12 @@
   <div class="modal-overlay" id="altar-detail-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2 id="altar-detail-title">壇</h2>
-      <p class="modal-sub">管理這個壇的天廚／佛堂／庶務組長與組員。對方需先用 LINE 開啟過天廚頁面連結一次（天廚組），或任一其他頁面連結（佛堂／庶務組，只是用來建立帳號資料），才能在下方搜尋到。</p>
+      <p class="modal-sub">管理這個壇的天廚／佛堂／庶務／住壇組長與組員。對方需先用 LINE 開啟過天廚頁面連結一次（天廚組），或任一其他頁面連結（佛堂／庶務／住壇組，只是用來建立帳號資料），才能在下方搜尋到。</p>
 
       <div id="altar-team-kitchen"></div>
       <div id="altar-team-shrine" style="margin-top:20px;"></div>
       <div id="altar-team-general" style="margin-top:20px;"></div>
+      <div id="altar-team-resident" style="margin-top:20px;"></div>
 
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="altar-detail-modal-close-btn">關閉</button>
@@ -3227,10 +3230,10 @@ function renderLodgingMatchingRequests() {
 }
 
 /* =========================================================
-   ALTARS (壇) — 天廚／佛堂／庶務 per location.
+   ALTARS (壇) — 天廚／佛堂／庶務／住壇 per location.
    ========================================================= */
 
-const TEAM_LABELS = { kitchen: '天廚', shrine: '佛堂', general: '庶務' };
+const TEAM_LABELS = { kitchen: '天廚', shrine: '佛堂', general: '庶務', resident: '住壇' };
 
 document.getElementById('manage-altars-btn').addEventListener('click', () => {
   document.getElementById('altars-modal').classList.add('show');
@@ -3245,7 +3248,7 @@ document.getElementById('altar-detail-modal-close-btn').addEventListener('click'
 
 // Each altar gets its own real LIFF app (same mechanism as per-event
 // links) pointed at altar-hub.html?altar=<id>, so opening it lands
-// directly on that altar's own combined 天廚／佛堂／庶務 hub.
+// directly on that altar's own combined 天廚／佛堂／庶務／住壇 hub.
 async function createLiffForAltar(altarId, altarName) {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -3351,7 +3354,7 @@ async function loadAltarsList() {
               : '<button type="button" class="btn-text altar-create-liff-btn" style="color:var(--blue);">建立連結 Create link</button>'
             }</td>
             <td style="text-align:right; white-space:nowrap;">
-              <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務</button>
+              <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務／住壇</button>
               <button type="button" class="btn-text altar-move-btn">移動上層壇</button>
               <button type="button" class="btn-text altar-rename-btn">重新命名</button>
               <button type="button" class="btn-text danger altar-delete-btn">刪除</button>
@@ -3371,7 +3374,7 @@ async function loadAltarsList() {
       b.disabled = true;
       const result = await createLiffForAltar(a.id, a.name);
       if (result.ok) {
-        alert(`已建立「${a.name}」的專屬 LINE 連結：\n${result.liffLink}\n\n請將此連結分享給該壇的天廚／佛堂／庶務組員，開啟後即進入本壇專屬頁面。`);
+        alert(`已建立「${a.name}」的專屬 LINE 連結：\n${result.liffLink}\n\n請將此連結分享給該壇的天廚／佛堂／庶務／住壇組員，開啟後即進入本壇專屬頁面。`);
         await loadAltarsList();
       } else {
         alert('建立失敗：' + result.error);
@@ -3454,13 +3457,14 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
   const { data: altar, error } = await supabaseClient.from('altars').insert({ name, parent_id: parentId }).select().single();
   if (error) { alert('新增失敗：' + error.message); btn.disabled = false; return; }
 
-  // Auto-create this altar's 天廚／佛堂／庶務 task_groups, same as
+  // Auto-create this altar's 天廚／佛堂／庶務／住壇 task_groups, same as
   // 31-org-systems.sql did for 本堂, so 佛堂/庶務 templates can be
   // scoped to this altar right away.
   const teamRows = [
     { name: name + '・天廚', altar_id: altar.id, team: 'kitchen' },
     { name: name + '・佛堂', altar_id: altar.id, team: 'shrine' },
     { name: name + '・庶務', altar_id: altar.id, team: 'general' },
+    { name: name + '・住壇', altar_id: altar.id, team: 'resident' },
   ];
   const { error: groupErr } = await supabaseClient.from('task_groups').insert(teamRows);
   if (groupErr) { alert('壇已建立，但建立群組時發生錯誤：' + groupErr.message); }
@@ -3475,7 +3479,7 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
 
 function openAltarDetail(altar) {
   document.getElementById('altar-detail-title').textContent = '⛩️ ' + altar.name;
-  ['kitchen', 'shrine', 'general'].forEach(team => renderAltarTeamSection(altar, team));
+  ['kitchen', 'shrine', 'general', 'resident'].forEach(team => renderAltarTeamSection(altar, team));
   document.getElementById('altar-detail-modal').classList.add('show');
 }
 
@@ -3532,7 +3536,7 @@ async function refreshAltarTeamList(altar, team) {
       // Keep task_group_members in sync for 佛堂／庶務 — this altar's
       // team group exists solely to scope this team's tasks, so
       // leaving the team also means losing visibility of its tasks.
-      if (team === 'shrine' || team === 'general') {
+      if (team === 'shrine' || team === 'general' || team === 'resident') {
         const { data: grp } = await supabaseClient
           .from('task_groups').select('id')
           .eq('altar_id', altar.id).eq('team', team).maybeSingle();
@@ -3589,7 +3593,7 @@ async function runAltarTeamSearch(altar, team, query) {
       // there) — so a leader also needs to be a Job Admin to
       // actually manage tasks. Kitchen doesn't need this: kitchen-api
       // checks altar_team_members directly.
-      if (role === 'leader' && (team === 'shrine' || team === 'general')) {
+      if (role === 'leader' && (team === 'shrine' || team === 'general' || team === 'resident')) {
         const { error: jobAdminErr } = await supabaseClient.from('task_job_admins').upsert({ user_id: userId });
         if (!jobAdminErr) {
           alert(`已將此人加入為${TEAM_LABELS[team]}組長，並同時加入「任務管理」管理員名單。\n\n請提醒對方在「任務管理」建立工作時，選擇限定「${altar.name}・${TEAM_LABELS[team]}」群組，工作才只會顯示給這個壇的${TEAM_LABELS[team]}組員。`);
@@ -3600,7 +3604,7 @@ async function runAltarTeamSearch(altar, team, query) {
       // and member) — this is what actually grants visibility of the
       // altar's scoped tasks in the Task system and in altar-hub.html,
       // regardless of leader/member role.
-      if (team === 'shrine' || team === 'general') {
+      if (team === 'shrine' || team === 'general' || team === 'resident') {
         const { data: grp } = await supabaseClient
           .from('task_groups').select('id')
           .eq('altar_id', altar.id).eq('team', team).maybeSingle();
@@ -5037,9 +5041,52 @@ async function loadGroups() {
   }
 }
 
+function renderSystemsList() {
+  const container = document.getElementById('systems-manage-list');
+  if (!container) return;
+
+  if (allGroupSystems.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="border:1px solid var(--line, #e5e7eb); border-radius:8px; padding:8px 10px; margin-bottom:4px;">
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">目前系統（可從下拉選單移除）</div>
+      ${allGroupSystems.map(s => {
+        const count = allGroups.filter(g => g.system_id === s.id).length;
+        return `
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:4px 0;" data-system-id="${s.id}">
+            <span>🗂️ ${escapeHtml(s.name)}　<span style="color:var(--ink-soft); font-size:12px;">（${count} 個群組）</span></span>
+            <button type="button" class="btn-text sys-delete-btn" style="color:var(--red);">刪除</button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+
+  container.querySelectorAll('.sys-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('[data-system-id]').dataset.systemId;
+      const sys = allGroupSystems.find(s => s.id === id);
+      const groupsInSystem = allGroups.filter(g => g.system_id === id);
+      if (groupsInSystem.length > 0) {
+        alert(`「${sys.name}」底下還有 ${groupsInSystem.length} 個群組，請先用「移動系統」把它們移到別的系統（或設為不屬於任何系統），才能刪除這個系統。`);
+        return;
+      }
+      if (!confirm(`確定要刪除系統「${sys.name}」嗎？（這個系統底下目前沒有任何群組）`)) return;
+      const { error } = await supabaseClient.from('group_systems').delete().eq('id', id);
+      if (error) { alert('刪除失敗：' + error.message); return; }
+      await loadGroups();
+      renderGroupsList();
+    });
+  });
+}
+
 function renderGroupsList() {
   const container = document.getElementById('groups-list-container');
   if (!container) return;
+  renderSystemsList();
 
   if (allGroups.length === 0) {
     container.innerHTML = '<p style="text-align:center; color:var(--ink-soft); padding:12px 0;">尚無群組</p>';
