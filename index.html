@@ -465,6 +465,11 @@
         </div>
 
         <div class="modal-field">
+          <label>所屬壇 Altar <span class="modal-hint" style="margin:0;">選填，選定後該壇及其下層壇都能看到；上層壇的活動也會自動出現在下層壇</span></label>
+          <select id="ne-altar"><option value="">（不限定壇）</option></select>
+        </div>
+
+        <div class="modal-field">
           <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這個活動</span></label>
           <div class="group-checkbox-list" id="ne-group-checkboxes"></div>
         </div>
@@ -642,6 +647,10 @@
             <label>子項目清單 Subtasks <span class="modal-hint" style="margin:0;">選填，認領者可在每次執行時勾選完成</span></label>
             <div id="subtask-builder-list"></div>
             <button type="button" class="btn-add-field" id="add-subtask-btn">＋ 新增子項目 Add subtask</button>
+          </div>
+          <div class="modal-field">
+            <label>所屬壇 Altar <span class="modal-hint" style="margin:0;">選填，選定後該壇及其下層壇都能看到；上層壇的工作也會自動出現在下層壇</span></label>
+            <select id="tpl-altar"><option value="">（不限定壇）</option></select>
           </div>
           <div class="modal-field">
             <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這項工作</span></label>
@@ -843,6 +852,11 @@
           <div class="tabs-row" id="flow-day-tabs" style="flex-wrap:wrap; margin-bottom:10px;"></div>
           <div id="flow-item-list"></div>
           <button type="button" class="btn-add-field" id="flow-add-item-btn">＋ 新增項目 Add item</button>
+        </div>
+
+        <div class="modal-field">
+          <label>所屬壇 Altar <span class="modal-hint" style="margin:0;">選填，選定後該壇及其下層壇都能看到；上層壇的流程表也會自動出現在下層壇</span></label>
+          <select id="flow-altar"><option value="">（不限定壇）</option></select>
         </div>
 
         <div class="modal-field">
@@ -1060,10 +1074,11 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員，三組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務內容，與其他壇分開維護。</p>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務三個組，各自有組長與組員，三組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務內容，與其他壇分開維護。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
+        <select id="altar-new-parent" style="max-width:160px;"><option value="">（頂層，無上層壇）</option></select>
         <button type="button" class="btn-new-event" id="altar-create-btn">＋ 新增壇</button>
       </div>
 
@@ -1269,7 +1284,7 @@ async function refreshPendingBadges() {
 }
 
 async function loadEvents() {
-  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id, offers_transport, offers_lodging').order('event_date', { ascending: false });
+  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id, offers_transport, offers_lodging, altar_id').order('event_date', { ascending: false });
 
   if (!isSuperAdmin) {
     const eventIds = myRoles.map(r => r.event_id).filter(Boolean);
@@ -1652,6 +1667,8 @@ async function openEventModal(eventToEdit) {
   }
   renderEventGroupCheckboxes(checkedGroupIds);
 
+  await loadAltarsForPicker(document.getElementById('ne-altar'), eventToEdit ? (eventToEdit.altar_id || '') : '');
+
   document.getElementById('new-event-modal').classList.add('show');
 }
 
@@ -1752,13 +1769,14 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
 
   const submitBtn = document.getElementById('ne-submit-btn');
   const editingId = document.getElementById('ne-editing-id').value;
+  const altar_id = document.getElementById('ne-altar').value || null;
   submitBtn.disabled = true;
 
   if (editingId) {
     submitBtn.textContent = '儲存中…';
     const { error: updateErr } = await supabaseClient
       .from('events')
-      .update({ name, event_date: date, location, description, form_schema: formSchema })
+      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id })
       .eq('id', editingId);
 
     submitBtn.disabled = false;
@@ -1784,7 +1802,7 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
 
   const { data, error } = await supabaseClient
     .from('events')
-    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema })
+    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id })
     .select()
     .single();
 
@@ -3256,32 +3274,85 @@ async function copyTextWithFallback(text, btn, label) {
 
 let allAltars = [];
 
+// Sort altars so every parent appears before its children, and
+// compute each altar's depth (0 = top level) — turns the flat rows
+// from Supabase into the order/indent a tree view needs, with no
+// extra recursive SQL round-trip.
+function buildAltarTree(altars) {
+  const byParent = {};
+  altars.forEach(a => {
+    const key = a.parent_id || '__root__';
+    (byParent[key] ||= []).push(a);
+  });
+  const ordered = [];
+  function walk(parentKey, depth) {
+    (byParent[parentKey] || []).forEach(a => {
+      ordered.push({ ...a, depth });
+      walk(a.id, depth + 1);
+    });
+  }
+  walk('__root__', 0);
+  // Any altar whose parent_id points at something missing (shouldn't
+  // happen, but don't silently drop it) — append at top level.
+  const seen = new Set(ordered.map(a => a.id));
+  altars.forEach(a => { if (!seen.has(a.id)) ordered.push({ ...a, depth: 0 }); });
+  return ordered;
+}
+
+// Every id in the subtree rooted at rootId, including rootId itself —
+// used client-side to keep an altar from being moved under its own
+// descendant (which would create a cycle the SQL tree can't express).
+function altarDescendantIds(rootId, altars) {
+  const ids = new Set([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    altars.forEach(a => {
+      if (a.parent_id && ids.has(a.parent_id) && !ids.has(a.id)) { ids.add(a.id); grew = true; }
+    });
+  }
+  return ids;
+}
+
+function populateAltarParentSelect(selectEl, altars, { excludeId = null, selectedId = '' } = {}) {
+  const exclude = excludeId ? altarDescendantIds(excludeId, altars) : new Set();
+  const tree = buildAltarTree(altars).filter(a => !exclude.has(a.id));
+  selectEl.innerHTML = '<option value="">（頂層，無上層壇）</option>' +
+    tree.map(a => `<option value="${a.id}">${'　'.repeat(a.depth)}${a.depth > 0 ? '└ ' : ''}${escapeHtml(a.name)}</option>`).join('');
+  selectEl.value = selectedId || '';
+}
+
 async function loadAltarsList() {
   const listEl = document.getElementById('altars-list');
   listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
 
-  const { data, error } = await supabaseClient.from('altars').select('id, name, liff_id').order('created_at', { ascending: true });
+  const { data, error } = await supabaseClient.from('altars').select('id, name, liff_id, parent_id').order('created_at', { ascending: true });
   if (error) { listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml(error.message) + '</div>'; return; }
   allAltars = data || [];
+
+  populateAltarParentSelect(document.getElementById('altar-new-parent'), allAltars);
 
   if (allAltars.length === 0) {
     listEl.innerHTML = '<div class="no-groups-note">尚無壇，請先新增。</div>';
     return;
   }
 
+  const tree = buildAltarTree(allAltars);
+
   listEl.innerHTML = `
     <table>
       <thead><tr><th>壇名稱</th><th>本壇 LINE 連結</th><th style="text-align:right;">操作</th></tr></thead>
       <tbody>
-        ${allAltars.map(a => `
+        ${tree.map(a => `
           <tr data-altar-id="${a.id}">
-            <td><strong>${escapeHtml(a.name)}</strong></td>
+            <td>${'　'.repeat(a.depth)}${a.depth > 0 ? '└ ' : ''}<strong>${escapeHtml(a.name)}</strong></td>
             <td>${a.liff_id
               ? '<button type="button" class="btn-text altar-copy-liff-btn">複製連結 Copy link</button>'
               : '<button type="button" class="btn-text altar-create-liff-btn" style="color:var(--blue);">建立連結 Create link</button>'
             }</td>
             <td style="text-align:right; white-space:nowrap;">
               <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務</button>
+              <button type="button" class="btn-text altar-move-btn">移動上層壇</button>
               <button type="button" class="btn-text altar-rename-btn">重新命名</button>
               <button type="button" class="btn-text danger altar-delete-btn">刪除</button>
             </td>
@@ -3333,10 +3404,36 @@ async function loadAltarsList() {
       await loadAltarsList();
     });
   });
+  listEl.querySelectorAll('.altar-move-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = e.target.closest('tr').dataset.altarId;
+      const a = allAltars.find(x => x.id === id);
+      // Build the same indented option list as the create-row picker,
+      // but excluding this altar and everything under it — moving an
+      // altar under its own descendant would create a cycle.
+      const descendants = altarDescendantIds(id, allAltars);
+      const candidates = buildAltarTree(allAltars).filter(x => !descendants.has(x.id));
+      if (candidates.length === 0) {
+        if (!a.parent_id) { alert('目前沒有可設為上層壇的對象。'); return; }
+      }
+      const lines = ['（輸入 0 設為頂層，無上層壇）', ...candidates.map((x, i) => `${i + 1}. ${'　'.repeat(x.depth)}${x.name}`)];
+      const choice = prompt(`將「${a.name}」移動到哪個上層壇之下？\n\n${lines.join('\n')}\n\n請輸入編號：`, '0');
+      if (choice === null) return;
+      const idx = parseInt(choice.trim(), 10);
+      if (Number.isNaN(idx)) return;
+      const newParentId = idx === 0 ? null : (candidates[idx - 1] ? candidates[idx - 1].id : undefined);
+      if (newParentId === undefined) { alert('輸入的編號不正確。'); return; }
+      const { error: moveErr } = await supabaseClient.from('altars').update({ parent_id: newParentId }).eq('id', id);
+      if (moveErr) { alert('移動失敗：' + moveErr.message); return; }
+      await loadAltarsList();
+    });
+  });
   listEl.querySelectorAll('.altar-delete-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const id = e.target.closest('tr').dataset.altarId;
       const a = allAltars.find(x => x.id === id);
+      const hasChildren = allAltars.some(x => x.parent_id === id);
+      if (hasChildren) { alert(`「${a.name}」底下還有下層壇，請先將下層壇移出或刪除，才能刪除此壇。`); return; }
       if (!confirm(`確定要刪除「${a.name}」嗎？\n\n此動作將一併刪除該壇的天廚食譜／菜單／工作，以及對應的任務群組（原本用該群組限定的工作範本會變回所有人可見）。`)) return;
       const { error: delErr } = await supabaseClient.from('altars').delete().eq('id', id);
       if (delErr) { alert('刪除失敗：' + delErr.message); return; }
@@ -3349,10 +3446,12 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
   const input = document.getElementById('altar-new-name');
   const name = input.value.trim();
   if (!name) return;
+  const parentSelect = document.getElementById('altar-new-parent');
+  const parentId = parentSelect.value || null;
   const btn = document.getElementById('altar-create-btn');
   btn.disabled = true;
 
-  const { data: altar, error } = await supabaseClient.from('altars').insert({ name }).select().single();
+  const { data: altar, error } = await supabaseClient.from('altars').insert({ name, parent_id: parentId }).select().single();
   if (error) { alert('新增失敗：' + error.message); btn.disabled = false; return; }
 
   // Auto-create this altar's 天廚／佛堂／庶務 task_groups, same as
@@ -3367,6 +3466,7 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
   if (groupErr) { alert('壇已建立，但建立群組時發生錯誤：' + groupErr.message); }
 
   input.value = '';
+  parentSelect.value = '';
   btn.disabled = false;
   await loadAltarsList();
 });
@@ -3867,6 +3967,8 @@ async function openFlowForm(flow) {
   }
   renderFlowGroupCheckboxes(checkedGroupIds);
 
+  await loadAltarsForPicker(document.getElementById('flow-altar'), flow ? (flow.altar_id || '') : '');
+
   await loadFlowPresets();
 
   flowEditingId = flow ? flow.id : null;
@@ -4007,6 +4109,7 @@ document.getElementById('flow-submit-btn').addEventListener('click', async () =>
     location: document.getElementById('flow-location').value.trim() || null,
     address: document.getElementById('flow-address').value.trim() || null,
     start_date, end_date,
+    altar_id: document.getElementById('flow-altar').value || null,
   };
 
   const submitBtn = document.getElementById('flow-submit-btn');
@@ -4278,7 +4381,24 @@ async function openTemplateForm(tpl) {
   }
   renderTplGroupCheckboxes(checkedGroupIds);
 
+  await loadAltarsForPicker(document.getElementById('tpl-altar'), tpl ? (tpl.altar_id || '') : '');
+
   await loadJobPresets();
+}
+
+/* ---------- Shared altar picker (used by Task Templates, Events,
+   and Flow Sheets — a simple "which altar (and everything under it)
+   can see this" dropdown, distinct from the Groups checkbox list).
+   Renders the same indented tree as the Altars panel's own pickers. ---------- */
+async function loadAltarsForPicker(selectEl, selectedId) {
+  const { data, error } = await supabaseClient.from('altars').select('id, name, parent_id').order('created_at', { ascending: true });
+  if (error) { selectEl.innerHTML = '<option value="">（不限定壇）</option>'; return; }
+  populateAltarParentSelect(selectEl, data || [], { selectedId: selectedId || '' });
+  // populateAltarParentSelect's placeholder text ("頂層，無上層壇") is
+  // written for the Altars-panel parent picker; here it means "no
+  // altar restriction at all", so relabel just that one option.
+  const placeholderOpt = selectEl.querySelector('option[value=""]');
+  if (placeholderOpt) placeholderOpt.textContent = '（不限定壇）';
 }
 
 /* ---------- Job presets (save/apply a job's content, minus
@@ -4447,7 +4567,8 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   }
 
   const editingId = document.getElementById('tpl-editing-id').value;
-  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date };
+  const altar_id = document.getElementById('tpl-altar').value || null;
+  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date, altar_id };
 
   const submitBtn = document.getElementById('tpl-submit-btn');
   submitBtn.disabled = true;
