@@ -2250,7 +2250,9 @@ function renderManageEventsList() {
     btn.addEventListener('click', async (e) => {
       const eventId = e.target.closest('tr').dataset.eventId;
       const ev = allEvents.find(x => x.id === eventId);
-      const link = 'https://liff.line.me/' + ev.liff_id;
+      // Every event shares one LIFF app now — the event itself is
+      // carried by ?event=<slug> on the link (see create-liff-app).
+      const link = 'https://liff.line.me/' + ev.liff_id + '?event=' + encodeURIComponent(ev.slug);
       try {
         await navigator.clipboard.writeText(link);
         btn.textContent = '已複製！';
@@ -3588,7 +3590,9 @@ async function loadAltarsList() {
     btn.addEventListener('click', (e) => {
       const id = e.target.closest('tr').dataset.altarId;
       const a = allAltars.find(x => x.id === id);
-      copyTextWithFallback('https://liff.line.me/' + a.liff_id, e.target, '複製連結 Copy link');
+      // Every altar shares one LIFF app now — the altar itself is
+      // carried by ?altar=<id> on the link (see create-liff-app).
+      copyTextWithFallback('https://liff.line.me/' + a.liff_id + '?altar=' + encodeURIComponent(a.id), e.target, '複製連結 Copy link');
     });
   });
   listEl.querySelectorAll('.altar-manage-btn').forEach(btn => {
