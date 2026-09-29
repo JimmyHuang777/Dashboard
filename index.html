@@ -2111,7 +2111,7 @@ async function loadEventAdminLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-event-admin-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-event-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-event-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-event-admin-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2119,6 +2119,21 @@ async function loadEventAdminLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-event-admin-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('event_admin', 'event-admin.html', '活動管理 Event Admin');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadEventAdminLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2396,7 +2411,7 @@ async function loadTasksLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-tasks-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2404,6 +2419,21 @@ async function loadTasksLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-tasks-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('tasks', 'tasks.html', '任務認領 Task Roster');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadTasksLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2433,7 +2463,7 @@ async function loadTasksAdminLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-admin-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-tasks-admin-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2441,6 +2471,21 @@ async function loadTasksAdminLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-tasks-admin-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('tasks_admin', 'tasks-admin.html', '工作管理 Job Admin');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadTasksAdminLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2475,7 +2520,7 @@ async function loadTasksOnceLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-once-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-once-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-once-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-tasks-once-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2483,6 +2528,21 @@ async function loadTasksOnceLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-tasks-once-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('tasks_once', 'tasks-once.html', '單次任務 One-time Tasks');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadTasksOnceLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2529,7 +2589,7 @@ async function loadHomeLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-home-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-home-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-home-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-home-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2537,6 +2597,21 @@ async function loadHomeLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-home-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('home', 'home.html', '功能入口 Home');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadHomeLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2590,7 +2665,7 @@ async function loadCarpoolLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-carpool-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-carpool-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-carpool-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-carpool-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2598,6 +2673,21 @@ async function loadCarpoolLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-carpool-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('carpool', 'carpool.html', '共乘 Carpool');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadCarpoolLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -2963,7 +3053,7 @@ async function loadLodgingLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-lodging-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-lodging-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-lodging-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-lodging-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -2971,6 +3061,21 @@ async function loadLodgingLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-lodging-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('lodging', 'lodging.html', '住宿 Lodging');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadLodgingLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -3104,7 +3209,7 @@ async function loadMeetingsLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-meetings-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-meetings-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-meetings-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-meetings-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -3112,6 +3217,21 @@ async function loadMeetingsLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-meetings-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('meetings', 'meetings.html', '溝通共識 Meetings');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadMeetingsLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -3920,7 +4040,7 @@ async function loadActivityFlowLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-activity-flow-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-activity-flow-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -3928,6 +4048,21 @@ async function loadActivityFlowLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-activity-flow-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '開班資訊表 Activity Flow');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadActivityFlowLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
@@ -3957,7 +4092,7 @@ async function loadActivityFlowAdminLiffStatus() {
   }
 
   const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-admin-liff-btn">複製連結 Copy link</button>';
+  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-activity-flow-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
   document.getElementById('copy-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
     try {
       await navigator.clipboard.writeText(link);
@@ -3965,6 +4100,21 @@ async function loadActivityFlowAdminLiffStatus() {
       setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
     } catch (err) {
       prompt('複製失敗，請手動複製以下連結：', link);
+    }
+  });
+  document.getElementById('regen-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
+    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
+    const btn = e.target;
+    btn.textContent = '產生中…';
+    btn.disabled = true;
+    const result = await createLiffGeneric('activity_flow_admin', 'activity-flow-admin.html', '開班課程表 Flow Admin');
+    if (result.ok) {
+      alert('已產生新連結：\n' + result.liffLink);
+      loadActivityFlowAdminLiffStatus();
+    } else {
+      alert('產生失敗：' + result.error);
+      btn.textContent = '重新產生連結 Regenerate';
+      btn.disabled = false;
     }
   });
 }
