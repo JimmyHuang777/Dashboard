@@ -510,7 +510,7 @@
         <table>
           <thead>
             <tr>
-              <th>活動名稱</th><th>日期</th><th>狀態</th><th>服務 Services</th><th>LINE 連結</th><th style="text-align:right;">操作</th>
+              <th>活動名稱</th><th>日期</th><th>狀態</th><th>服務 Services</th><th style="text-align:right;">操作</th>
             </tr>
           </thead>
           <tbody id="manage-events-list"></tbody>
@@ -915,7 +915,7 @@
   <div class="modal-overlay" id="home-modal">
     <div class="modal-box" style="max-width: 480px;">
       <h2>入口連結 Home Link</h2>
-      <p class="modal-sub">單一 LINE 連結入口，會依每個人的身分（一般成員／工作管理員／流程管理員）自動顯示可用的功能，不用再分別傳送各功能的連結。</p>
+      <p class="modal-sub">全系統唯一的 LINE 連結（網站根目錄），所有功能、活動、壇務都從這裡進入，會依每個人的身分（一般成員／工作管理員／流程管理員）自動顯示可用的功能，不用再分別傳送各功能的連結。</p>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">入口頁面的 LINE 連結 Home page LINE link</span>
@@ -927,7 +927,7 @@
         ・了愿生活圈：至少有一筆公開或該成員所屬群組可見的工作範本時才會顯示<br>
         ・開班資訊表：至少有一筆公開或該成員所屬群組可見的班程時才會顯示<br>
         ・行功了愿管理／開班課程表／活動管理：只有在「工作管理員」「流程管理員」「活動管理員」名單中的帳號才會看到<br>
-        ・活動報名：每個啟用中且已建立 LINE 連結的活動都會列出，無群組限制
+        ・活動報名：每個啟用中的活動都會列出；若活動有指定群組或所屬壇，只有該群組／該壇成員看得到，沒指定則全部成員都看得到
       </p>
 
       <div class="modal-actions">
@@ -1109,7 +1109,7 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。每個壇都有自己專屬的 LINE 連結（下方列表可建立／複製），成員開啟自己壇的連結，就只會看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。成員從「功能入口」進入，只會看到自己所屬壇的入口，並且只看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護（不需要另外建立或分享 LINE 連結）。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
@@ -2027,33 +2027,7 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
   await loadEvents();
   eventSelect.value = data.id;
   selectEvent(data.id);
-
-  submitBtn.textContent = '建立專屬 LINE 連結中…';
-  const result = await createLiffForEvent(data.id, slug, name);
-  if (result.ok) {
-    alert('活動已建立！專屬報名連結為：\n' + result.liffLink);
-    await loadEvents();
-  } else {
-    alert('活動已建立，但自動建立專屬 LINE 連結失敗：\n' + result.error +
-      '\n\n您可以稍後在「管理活動」中點擊「重新產生連結」再試一次。');
-  }
 });
-
-async function createLiffForEvent(eventId, slug, name) {
-  try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const res = await fetch(CREATE_LIFF_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken: session.access_token, event_id: eventId, slug, name }),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error || '建立 LIFF 連結失敗');
-    return { ok: true, liffLink: result.liffLink, liffId: result.liffId };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
 
 // Generic version for standalone (non-event) pages, like the task
 // roster — same underlying Edge Function, different mode.
@@ -2087,55 +2061,7 @@ document.getElementById('manage-events-close-btn').addEventListener('click', () 
 
 async function loadEventAdminLiffStatus() {
   const areaEl = document.getElementById('event-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'event_admin').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-event-admin-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-event-admin-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('event_admin', 'event-admin.html', '活動管理 Event Admin');
-      if (result.ok) {
-        alert('已建立活動管理頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadEventAdminLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-event-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-event-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-event-admin-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-event-admin-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('event_admin', 'event-admin.html', '活動管理 Event Admin');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadEventAdminLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 document.getElementById('manage-event-admins-btn').addEventListener('click', () => {
@@ -2224,10 +2150,6 @@ async function runEventAdminSearch(query) {
   });
 }
 
-function isValidLiffId(liffId) {
-  return !!liffId && /^\d+-[A-Za-z0-9]+$/.test(liffId);
-}
-
 function renderManageEventsList() {
   const tbody = document.getElementById('manage-events-list');
   if (!allEvents || allEvents.length === 0) {
@@ -2248,11 +2170,6 @@ function renderManageEventsList() {
         <button type="button" class="status-select ${ev.offers_transport ? 'confirmed' : 'cancelled'} me-toggle-transport-btn" style="font-size:12px; padding:5px 8px; margin-right:4px;">🚗 交通${ev.offers_transport ? '：可' : '：否'}</button>
         <button type="button" class="status-select ${ev.offers_lodging ? 'confirmed' : 'cancelled'} me-toggle-lodging-btn" style="font-size:12px; padding:5px 8px;">🏠 住宿${ev.offers_lodging ? '：可' : '：否'}</button>
       </td>
-      <td>
-        ${isValidLiffId(ev.liff_id)
-          ? `<button type="button" class="btn-text me-copy-link-btn">複製連結</button>`
-          : `<button type="button" class="btn-text me-regen-liff-btn" style="color:var(--amber);">重新產生連結</button>`}
-      </td>
       <td style="text-align:right; white-space:nowrap;">
         <button type="button" class="btn-text me-edit-btn">編輯</button>
         <button type="button" class="btn-text me-toggle-btn">${ev.is_active ? '停用' : '啟用'}</button>
@@ -2260,42 +2177,6 @@ function renderManageEventsList() {
       </td>
     </tr>
   `).join('');
-
-  tbody.querySelectorAll('.me-copy-link-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const eventId = e.target.closest('tr').dataset.eventId;
-      const ev = allEvents.find(x => x.id === eventId);
-      // Every event shares one LIFF app now — the event itself is
-      // carried by ?event=<slug> on the link (see create-liff-app).
-      const link = 'https://liff.line.me/' + ev.liff_id + '?event=' + encodeURIComponent(ev.slug);
-      try {
-        await navigator.clipboard.writeText(link);
-        btn.textContent = '已複製！';
-        setTimeout(() => { btn.textContent = '複製連結'; }, 1500);
-      } catch (err) {
-        prompt('複製失敗，請手動複製以下連結：', link);
-      }
-    });
-  });
-
-  tbody.querySelectorAll('.me-regen-liff-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const eventId = e.target.closest('tr').dataset.eventId;
-      const ev = allEvents.find(x => x.id === eventId);
-      btn.textContent = '產生中…';
-      btn.disabled = true;
-      const result = await createLiffForEvent(ev.id, ev.slug, ev.name);
-      if (result.ok) {
-        alert('已產生專屬報名連結：\n' + result.liffLink);
-        await loadEvents();
-        renderManageEventsList();
-      } else {
-        alert('產生失敗：' + result.error);
-        btn.textContent = '重新產生連結';
-        btn.disabled = false;
-      }
-    });
-  });
 
   tbody.querySelectorAll('.me-edit-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -2387,107 +2268,11 @@ document.getElementById('manage-tasks-btn').addEventListener('click', () => {
 
 async function loadTasksLiffStatus() {
   const areaEl = document.getElementById('tasks-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-tasks-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('tasks', 'tasks.html', '任務認領 Task Roster');
-      if (result.ok) {
-        alert('已建立任務頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadTasksLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-tasks-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-tasks-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('tasks', 'tasks.html', '任務認領 Task Roster');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadTasksLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 async function loadTasksAdminLiffStatus() {
   const areaEl = document.getElementById('tasks-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks_admin').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-admin-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-tasks-admin-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('tasks_admin', 'tasks-admin.html', '工作管理 Job Admin');
-      if (result.ok) {
-        alert('已建立工作管理頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadTasksAdminLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-tasks-admin-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-tasks-admin-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('tasks_admin', 'tasks-admin.html', '工作管理 Job Admin');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadTasksAdminLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 // ---- Separate, independent LIFF link that shows ONLY templates with
@@ -2496,55 +2281,7 @@ async function loadTasksAdminLiffStatus() {
 // original Task Roster link or page. ----
 async function loadTasksOnceLiffStatus() {
   const areaEl = document.getElementById('tasks-once-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'tasks_once').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-tasks-once-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-tasks-once-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('tasks_once', 'tasks-once.html', '單次任務 One-time Tasks');
-      if (result.ok) {
-        alert('已建立單次任務頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadTasksOnceLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-tasks-once-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-tasks-once-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-tasks-once-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-tasks-once-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('tasks_once', 'tasks-once.html', '單次任務 One-time Tasks');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadTasksOnceLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
@@ -2575,7 +2312,7 @@ async function loadHomeLiffStatus() {
       const btn = e.target;
       btn.textContent = '建立中…';
       btn.disabled = true;
-      const result = await createLiffGeneric('home', 'home.html', '功能入口 Home');
+      const result = await createLiffGeneric('home', '/', '功能入口 Home（唯一入口）');
       if (result.ok) {
         alert('已建立入口頁面的專屬 LINE 連結：\n' + result.liffLink);
         loadHomeLiffStatus();
@@ -2604,7 +2341,7 @@ async function loadHomeLiffStatus() {
     const btn = e.target;
     btn.textContent = '產生中…';
     btn.disabled = true;
-    const result = await createLiffGeneric('home', 'home.html', '功能入口 Home');
+    const result = await createLiffGeneric('home', '/', '功能入口 Home（唯一入口）');
     if (result.ok) {
       alert('已產生新連結：\n' + result.liffLink);
       loadHomeLiffStatus();
@@ -2641,55 +2378,7 @@ document.getElementById('carpool-modal-close-btn').addEventListener('click', () 
 
 async function loadCarpoolLiffStatus() {
   const areaEl = document.getElementById('carpool-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'carpool').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-carpool-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-carpool-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('carpool', 'carpool.html', '共乘 Carpool');
-      if (result.ok) {
-        alert('已建立共乘頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadCarpoolLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-carpool-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-carpool-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-carpool-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-carpool-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('carpool', 'carpool.html', '共乘 Carpool');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadCarpoolLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Car Managers (global permission list) ---------- */
@@ -3029,55 +2718,7 @@ document.getElementById('lodging-modal-close-btn').addEventListener('click', () 
 
 async function loadLodgingLiffStatus() {
   const areaEl = document.getElementById('lodging-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'lodging').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-lodging-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-lodging-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('lodging', 'lodging.html', '住宿 Lodging');
-      if (result.ok) {
-        alert('已建立住宿頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadLodgingLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-lodging-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-lodging-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-lodging-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-lodging-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('lodging', 'lodging.html', '住宿 Lodging');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadLodgingLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Lodging Managers (global permission list) ---------- */
@@ -3185,55 +2826,7 @@ document.getElementById('meetings-modal-close-btn').addEventListener('click', ()
 
 async function loadMeetingsLiffStatus() {
   const areaEl = document.getElementById('meetings-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'meetings').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-meetings-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-meetings-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('meetings', 'meetings.html', '溝通共識 Meetings');
-      if (result.ok) {
-        alert('已建立溝通共識頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadMeetingsLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-meetings-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-meetings-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-meetings-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-meetings-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('meetings', 'meetings.html', '溝通共識 Meetings');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadMeetingsLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Meeting Admins (global permission list) ---------- */
@@ -3569,25 +3162,6 @@ document.getElementById('altar-detail-modal-close-btn').addEventListener('click'
   document.getElementById('altar-detail-modal').classList.remove('show');
 });
 
-// Each altar gets its own real LIFF app (same mechanism as per-event
-// links) pointed at altar-hub.html?altar=<id>, so opening it lands
-// directly on that altar's own combined 天廚／佛堂／庶務／住壇 hub.
-async function createLiffForAltar(altarId, altarName) {
-  try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const res = await fetch(CREATE_LIFF_FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken: session.access_token, altar_id: altarId, name: altarName + ' 壇務' }),
-    });
-    const result = await res.json();
-    if (!res.ok) throw new Error(result.error || '建立 LIFF 連結失敗');
-    return { ok: true, liffLink: result.liffLink, liffId: result.liffId };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
-
 async function copyTextWithFallback(text, btn, label) {
   try {
     await navigator.clipboard.writeText(text);
@@ -3667,15 +3241,11 @@ async function loadAltarsList() {
 
   listEl.innerHTML = `
     <table>
-      <thead><tr><th>壇名稱</th><th>本壇 LINE 連結</th><th style="text-align:right;">操作</th></tr></thead>
+      <thead><tr><th>壇名稱</th><th style="text-align:right;">操作</th></tr></thead>
       <tbody>
         ${tree.map(a => `
           <tr data-altar-id="${a.id}">
             <td>${'　'.repeat(a.depth)}${a.depth > 0 ? '└ ' : ''}<strong>${escapeHtml(a.name)}</strong></td>
-            <td>${a.liff_id
-              ? '<button type="button" class="btn-text altar-copy-liff-btn">複製連結 Copy link</button>'
-              : '<button type="button" class="btn-text altar-create-liff-btn" style="color:var(--blue);">建立連結 Create link</button>'
-            }</td>
             <td style="text-align:right; white-space:nowrap;">
               <button type="button" class="btn-text altar-manage-btn">管理天廚／佛堂／庶務／住壇</button>
               <button type="button" class="btn-text altar-move-btn">移動上層壇</button>
@@ -3688,33 +3258,6 @@ async function loadAltarsList() {
     </table>
   `;
 
-  listEl.querySelectorAll('.altar-create-liff-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const id = e.target.closest('tr').dataset.altarId;
-      const a = allAltars.find(x => x.id === id);
-      const b = e.target;
-      b.textContent = '建立中…';
-      b.disabled = true;
-      const result = await createLiffForAltar(a.id, a.name);
-      if (result.ok) {
-        alert(`已建立「${a.name}」的專屬 LINE 連結：\n${result.liffLink}\n\n請將此連結分享給該壇的天廚／佛堂／庶務／住壇組員，開啟後即進入本壇專屬頁面。`);
-        await loadAltarsList();
-      } else {
-        alert('建立失敗：' + result.error);
-        b.textContent = '建立連結 Create link';
-        b.disabled = false;
-      }
-    });
-  });
-  listEl.querySelectorAll('.altar-copy-liff-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const id = e.target.closest('tr').dataset.altarId;
-      const a = allAltars.find(x => x.id === id);
-      // Every altar shares one LIFF app now — the altar itself is
-      // carried by ?altar=<id> on the link (see create-liff-app).
-      copyTextWithFallback('https://liff.line.me/' + a.liff_id + '?altar=' + encodeURIComponent(a.id), e.target, '複製連結 Copy link');
-    });
-  });
   listEl.querySelectorAll('.altar-manage-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = e.target.closest('tr').dataset.altarId;
@@ -4016,107 +3559,11 @@ document.getElementById('flows-modal-close-btn').addEventListener('click', () =>
 
 async function loadActivityFlowLiffStatus() {
   const areaEl = document.getElementById('activity-flow-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'activity_flow').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-activity-flow-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-activity-flow-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '開班資訊表 Activity Flow');
-      if (result.ok) {
-        alert('已建立流程表查看頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadActivityFlowLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-activity-flow-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-activity-flow-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-activity-flow-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('activity_flow', 'activity-flow.html', '開班資訊表 Activity Flow');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadActivityFlowLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 async function loadActivityFlowAdminLiffStatus() {
   const areaEl = document.getElementById('activity-flow-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12.5px; color:var(--ink-soft);">載入中…</span>';
-
-  const { data, error } = await supabaseClient.from('liff_apps').select('liff_id').eq('purpose', 'activity_flow_admin').maybeSingle();
-
-  if (error || !data || !data.liff_id) {
-    areaEl.innerHTML = '<button type="button" class="btn-text" id="create-activity-flow-admin-liff-btn" style="color:var(--blue);">建立連結 Create link</button>';
-    document.getElementById('create-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
-      const btn = e.target;
-      btn.textContent = '建立中…';
-      btn.disabled = true;
-      const result = await createLiffGeneric('activity_flow_admin', 'activity-flow-admin.html', '開班課程表 Flow Admin');
-      if (result.ok) {
-        alert('已建立開班課程表頁面的專屬 LINE 連結：\n' + result.liffLink);
-        loadActivityFlowAdminLiffStatus();
-      } else {
-        alert('建立失敗：' + result.error);
-        btn.textContent = '建立連結 Create link';
-        btn.disabled = false;
-      }
-    });
-    return;
-  }
-
-  const link = 'https://liff.line.me/' + data.liff_id;
-  areaEl.innerHTML = '<button type="button" class="btn-text" id="copy-activity-flow-admin-liff-btn">複製連結 Copy link</button> <button type="button" class="btn-text" id="regen-activity-flow-admin-liff-btn" style="color:var(--amber);">重新產生連結 Regenerate</button>';
-  document.getElementById('copy-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
-    try {
-      await navigator.clipboard.writeText(link);
-      e.target.textContent = '已複製！';
-      setTimeout(() => { e.target.textContent = '複製連結 Copy link'; }, 1500);
-    } catch (err) {
-      prompt('複製失敗，請手動複製以下連結：', link);
-    }
-  });
-  document.getElementById('regen-activity-flow-admin-liff-btn').addEventListener('click', async (e) => {
-    if (!confirm('重新產生連結後，舊的連結將會失效，需要重新分享新連結給使用者才能繼續使用。確定要繼續嗎？')) return;
-    const btn = e.target;
-    btn.textContent = '產生中…';
-    btn.disabled = true;
-    const result = await createLiffGeneric('activity_flow_admin', 'activity-flow-admin.html', '開班課程表 Flow Admin');
-    if (result.ok) {
-      alert('已產生新連結：\n' + result.liffLink);
-      loadActivityFlowAdminLiffStatus();
-    } else {
-      alert('產生失敗：' + result.error);
-      btn.textContent = '重新產生連結 Regenerate';
-      btn.disabled = false;
-    }
-  });
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Flow list ---------- */
