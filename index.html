@@ -401,7 +401,7 @@
           <button type="button" class="dropdown-item" id="manage-tasks-btn">任務管理 Tasks</button>
           <button type="button" class="dropdown-item" id="manage-groups-btn">群組 Groups</button>
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
-          <button type="button" class="dropdown-item" id="manage-home-btn">入口連結 Home Link</button>
+          <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
         </div>
       </div>
       <div class="topbar-dropdown" id="tan-affairs-dropdown">
@@ -914,11 +914,11 @@
 
   <div class="modal-overlay" id="home-modal">
     <div class="modal-box" style="max-width: 480px;">
-      <h2>入口連結 Home Link</h2>
+      <h2>群聖家園連結 Home Link</h2>
       <p class="modal-sub">全系統唯一的 LINE 連結（網站根目錄），所有功能、活動、壇務都從這裡進入，會依每個人的身分（一般成員／工作管理員／流程管理員）自動顯示可用的功能，不用再分別傳送各功能的連結。</p>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">入口頁面的 LINE 連結 Home page LINE link</span>
+        <span style="font-size:13px; color:var(--ink-soft);">群聖家園的 LINE 連結 Home LINE link</span>
         <span id="home-liff-link-area"></span>
       </div>
 
@@ -1109,7 +1109,7 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。成員從「功能入口」進入，只會看到自己所屬壇的入口，並且只看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護（不需要另外建立或分享 LINE 連結）。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。成員從「群聖家園」進入，只會看到自己所屬壇的入口，並且只看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護（不需要另外建立或分享 LINE 連結）。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
@@ -1763,6 +1763,13 @@ function formatDate(iso) {
 
 let fieldBuilderCount = 0;
 
+const DEFAULT_PERSONAL_FIELDS = [
+  { label: '公堂組別', type: 'select', required: true, options: ['1','2','3','4','5','6','7','8','無'] },
+  { label: '性別', type: 'select', required: true, options: ['乾','坤','童','女'] },
+  { label: '天職', type: 'text', required: true },
+  { label: '佛堂', type: 'text', required: true },
+];
+
 function addFieldBuilderRow(prefill) {
   const id = 'fb-' + (fieldBuilderCount++);
   const isRequired = !!(prefill && prefill.required);
@@ -1857,7 +1864,8 @@ async function openEventModal(eventToEdit) {
     document.getElementById('ne-editing-id').value = '';
     document.getElementById('ne-slug').disabled = false;
     document.getElementById('ne-slug-lock-note').style.display = 'none';
-    addFieldBuilderRow({ label: '', type: 'select' });
+    // New events start with the personal-info fields (so 帶入個人資訊 can fill them).
+    DEFAULT_PERSONAL_FIELDS.forEach(f => addFieldBuilderRow(f));
   }
 
   await loadGroups();
@@ -2061,7 +2069,7 @@ document.getElementById('manage-events-close-btn').addEventListener('click', () 
 
 async function loadEventAdminLiffStatus() {
   const areaEl = document.getElementById('event-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 document.getElementById('manage-event-admins-btn').addEventListener('click', () => {
@@ -2268,11 +2276,11 @@ document.getElementById('manage-tasks-btn').addEventListener('click', () => {
 
 async function loadTasksLiffStatus() {
   const areaEl = document.getElementById('tasks-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 async function loadTasksAdminLiffStatus() {
   const areaEl = document.getElementById('tasks-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 // ---- Separate, independent LIFF link that shows ONLY templates with
@@ -2281,7 +2289,7 @@ async function loadTasksAdminLiffStatus() {
 // original Task Roster link or page. ----
 async function loadTasksOnceLiffStatus() {
   const areaEl = document.getElementById('tasks-once-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
@@ -2289,7 +2297,7 @@ document.getElementById('tasks-modal-close-btn').addEventListener('click', () =>
 });
 
 /* =========================================================
-   HOME / ENTRY LINK (功能入口)
+   HOME / ENTRY LINK (群聖家園)
    ========================================================= */
 
 document.getElementById('manage-home-btn').addEventListener('click', () => {
@@ -2312,9 +2320,9 @@ async function loadHomeLiffStatus() {
       const btn = e.target;
       btn.textContent = '建立中…';
       btn.disabled = true;
-      const result = await createLiffGeneric('home', '/', '功能入口 Home（唯一入口）');
+      const result = await createLiffGeneric('home', '/', '群聖家園 Home（唯一入口）');
       if (result.ok) {
-        alert('已建立入口頁面的專屬 LINE 連結：\n' + result.liffLink);
+        alert('已建立群聖家園的 LINE 連結：\n' + result.liffLink);
         loadHomeLiffStatus();
       } else {
         alert('建立失敗：' + result.error);
@@ -2341,7 +2349,7 @@ async function loadHomeLiffStatus() {
     const btn = e.target;
     btn.textContent = '產生中…';
     btn.disabled = true;
-    const result = await createLiffGeneric('home', '/', '功能入口 Home（唯一入口）');
+    const result = await createLiffGeneric('home', '/', '群聖家園 Home（唯一入口）');
     if (result.ok) {
       alert('已產生新連結：\n' + result.liffLink);
       loadHomeLiffStatus();
@@ -2378,7 +2386,7 @@ document.getElementById('carpool-modal-close-btn').addEventListener('click', () 
 
 async function loadCarpoolLiffStatus() {
   const areaEl = document.getElementById('carpool-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Car Managers (global permission list) ---------- */
@@ -2718,7 +2726,7 @@ document.getElementById('lodging-modal-close-btn').addEventListener('click', () 
 
 async function loadLodgingLiffStatus() {
   const areaEl = document.getElementById('lodging-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Lodging Managers (global permission list) ---------- */
@@ -2826,7 +2834,7 @@ document.getElementById('meetings-modal-close-btn').addEventListener('click', ()
 
 async function loadMeetingsLiffStatus() {
   const areaEl = document.getElementById('meetings-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Meeting Admins (global permission list) ---------- */
@@ -3559,11 +3567,11 @@ document.getElementById('flows-modal-close-btn').addEventListener('click', () =>
 
 async function loadActivityFlowLiffStatus() {
   const areaEl = document.getElementById('activity-flow-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 async function loadActivityFlowAdminLiffStatus() {
   const areaEl = document.getElementById('activity-flow-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「功能入口」開啟，不需要另外的連結</span>';
+  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
 }
 
 /* ---------- Flow list ---------- */
