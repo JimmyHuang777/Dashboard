@@ -330,6 +330,9 @@
   .subtask-status-list { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
   .subtask-status-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
   .subtask-status-row .sub-title { flex: 1; }
+  .subtask-status-row .sub-actions { display: flex; gap: 2px; margin-left: auto; }
+  .subtask-status-row .btn-text { padding: 2px 6px; font-size: 12px; }
+  .assign-badge-no { font-size: 11px; color: var(--amber); background: var(--amber-bg); padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
   .subtask-status-row .sub-title.done { text-decoration: line-through; color: var(--ink-soft); }
   .subtask-status-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
   .subtask-status-badge.unassigned { background: var(--canvas); color: var(--ink-soft); }
@@ -408,6 +411,7 @@
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
           <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
           <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
+          <button type="button" class="dropdown-item" id="manage-admin-roles-btn">管理員角色 Admin Roles</button>
         </div>
       </div>
       <div class="topbar-dropdown" id="tan-affairs-dropdown">
@@ -751,6 +755,9 @@
         <label>搜尋姓名或電話 Search name or phone</label>
         <input type="text" id="assign-search-input" placeholder="輸入姓名或電話…">
       </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); margin:2px 0 8px; cursor:pointer;">
+        <input type="checkbox" id="assign-show-all"> 顯示所有人（含沒有此工作權限的人）
+      </label>
       <div id="assign-search-results" style="max-height: 240px; overflow-y:auto;"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="assign-modal-close-btn">關閉</button>
@@ -944,6 +951,30 @@
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="profiles-close-btn">關閉</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="admin-roles-modal">
+    <div class="modal-box" style="max-width: 760px; width: 96vw;">
+      <h2>管理員角色 Admin Roles</h2>
+      <p class="modal-sub">管理誰可以登入 Dashboard。超級管理員：全部權限；主辦：管理指定班程；工作人員：指定班程的報到。</p>
+      <div style="max-height:34vh; overflow:auto; margin-bottom:14px;" id="ar-list"></div>
+      <div style="border-top:1px solid var(--line); padding-top:12px;">
+        <div style="font-weight:700; margin-bottom:8px;">新增角色</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <input type="email" id="ar-email" placeholder="Email" style="padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+          <select id="ar-role" style="padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+            <option value="super_admin">超級管理員 Super Admin</option>
+            <option value="organizer">主辦 Organizer</option>
+            <option value="staff">報到工作人員 Staff</option>
+          </select>
+          <select id="ar-event" style="padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; display:none;"></select>
+          <input type="text" id="ar-password" placeholder="初始密碼（帳號不存在時才需要，至少 8 碼）" style="padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+        </div>
+        <div id="ar-msg" style="font-size:13px; margin-top:8px; min-height:18px;"></div>
+        <button type="button" class="btn-new-event" id="ar-add-btn" style="margin-top:6px;">新增 Add</button>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="ar-close-btn">關閉</button></div>
     </div>
   </div>
 
@@ -1206,6 +1237,7 @@
    ========================================================= */
 const SUPABASE_URL = 'https://ixzvbyxhzttvnheivsoc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4enZieXhoenR0dm5oZWl2c29jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyMTUxNzEsImV4cCI6MjEwNDc5MTE3MX0.IbPkpX8fepK4o3yDXHOGH0UXt1n3-17YXdcv36LxJuU';
+const ADMIN_ROLES_FUNCTION_URL = 'https://ixzvbyxhzttvnheivsoc.functions.supabase.co/admin-roles-api';
 const CREATE_LIFF_FUNCTION_URL = 'https://ixzvbyxhzttvnheivsoc.functions.supabase.co/create-liff-app';
 /* ========================================================= */
 
@@ -2407,6 +2439,62 @@ document.getElementById('profiles-close-btn').addEventListener('click', () => do
 document.getElementById('profiles-search').addEventListener('input', renderProfileRows);
 document.getElementById('profiles-filter-kind').addEventListener('change', renderProfileRows);
 document.getElementById('profiles-export-btn').addEventListener('click', exportProfilesCsv);
+
+// ---------- 管理員角色 Admin Roles (super admin only) ----------
+const AR_ROLE_LABEL = { super_admin: '超級管理員', organizer: '主辦', staff: '報到工作人員' };
+async function arCall(action, extra) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const res = await fetch(ADMIN_ROLES_FUNCTION_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, accessToken: session && session.access_token, ...(extra || {}) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { const e = new Error(data.error || ('HTTP ' + res.status)); e.data = data; throw e; }
+  return data;
+}
+function arMsg(t, ok) { const m = document.getElementById('ar-msg'); m.textContent = t || ''; m.style.color = ok ? '#067A37' : '#B91C1C'; }
+async function loadAdminRoles() {
+  const el = document.getElementById('ar-list');
+  el.innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  try {
+    const { roles } = await arCall('list');
+    el.innerHTML = '<table style="width:100%; border-collapse:collapse; font-size:13.5px;"><tr style="text-align:left; color:var(--ink-soft);"><th>Email</th><th>角色</th><th>班程</th><th></th></tr>' +
+      (roles || []).map(r => '<tr style="border-top:1px solid var(--line);"><td>' + escapeHtml(r.email || r.admin_user_id) + (r.is_me ? '（你）' : '') + '</td><td>' +
+        (AR_ROLE_LABEL[r.role] || r.role) + '</td><td>' + escapeHtml(r.event_name || '全部') + '</td><td><button type="button" class="btn-cancel" data-ar-del="' + r.id + '">移除</button></td></tr>').join('') + '</table>';
+  } catch (err) { el.innerHTML = '<div style="color:#B91C1C;">載入失敗：' + escapeHtml(err.message) + '</div>'; }
+}
+function arSyncForm() {
+  const role = document.getElementById('ar-role').value;
+  const ev = document.getElementById('ar-event');
+  ev.style.display = role === 'super_admin' ? 'none' : '';
+  ev.innerHTML = (allEvents || []).map(e => '<option value="' + e.id + '">' + escapeHtml(e.name || e.id) + '</option>').join('');
+}
+document.getElementById('manage-admin-roles-btn').addEventListener('click', () => {
+  document.getElementById('admin-roles-modal').classList.add('show');
+  arMsg(''); arSyncForm(); loadAdminRoles();
+});
+document.getElementById('ar-close-btn').addEventListener('click', () => document.getElementById('admin-roles-modal').classList.remove('show'));
+document.getElementById('ar-role').addEventListener('change', arSyncForm);
+document.getElementById('ar-list').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-ar-del]'); if (!b) return;
+  if (!confirm('確定要移除這個角色嗎？')) return;
+  try { await arCall('remove_role', { id: b.dataset.arDel }); arMsg('已移除', true); loadAdminRoles(); }
+  catch (err) { arMsg(err.message); }
+});
+document.getElementById('ar-add-btn').addEventListener('click', async () => {
+  const role = document.getElementById('ar-role').value;
+  const payload = { email: document.getElementById('ar-email').value.trim(), role, password: document.getElementById('ar-password').value || undefined };
+  if (role !== 'super_admin') payload.event_id = document.getElementById('ar-event').value;
+  if (!payload.email) { arMsg('請輸入 Email'); return; }
+  try {
+    await arCall('add_role', payload);
+    arMsg('已新增', true);
+    document.getElementById('ar-email').value = ''; document.getElementById('ar-password').value = '';
+    loadAdminRoles();
+  } catch (err) {
+    arMsg(err.data && err.data.need_password ? '此 Email 尚無帳號，請填寫初始密碼（至少 8 碼）後再按新增。' : err.message);
+  }
+});
 
 document.getElementById('manage-home-btn').addEventListener('click', () => {
   document.getElementById('home-modal').classList.add('show');
@@ -4650,7 +4738,7 @@ async function loadUpcomingTasks() {
 
   const { data: instances, error: instErr } = await supabaseClient
     .from('task_instances')
-    .select('id, occurrence_date, template_id, task_templates ( title, place, slots_per_instance, is_active )')
+    .select('id, occurrence_date, template_id, task_templates ( title, place, slots_per_instance, is_active, altar_id )')
     .gte('occurrence_date', from)
     .lte('occurrence_date', to)
     .order('occurrence_date', { ascending: true });
@@ -4699,6 +4787,8 @@ async function loadUpcomingTasks() {
       const status = row ? row.status : 'unassigned';
       const activeOrDone = status === 'taken' || status === 'completed';
       return {
+        subtask_template_id: s.id,
+        completion_id: row ? row.id : null,
         title: s.title,
         section: s.section || null,
         status,
@@ -4707,6 +4797,8 @@ async function loadUpcomingTasks() {
     });
     return {
       instance_id: inst.id,
+      template_id: inst.template_id,
+      altar_id: inst.task_templates.altar_id || null,
       occurrence_date: inst.occurrence_date,
       title: inst.task_templates.title,
       place: inst.task_templates.place || null,
@@ -4748,6 +4840,10 @@ function subtaskStatusListHTML(t) {
           <span class="sub-title ${s.status === 'completed' ? 'done' : ''}">${escapeHtml(s.title)}</span>
           <span class="subtask-status-badge ${s.status}">${SUBTASK_STATUS_LABELS[s.status] || s.status}</span>
           ${s.assigned_name ? `<span class="sub-by">${escapeHtml(s.assigned_name)}</span>` : ''}
+          <span class="sub-actions">
+            ${s.status === 'completed' ? '' : `<button type="button" class="btn-text sub-assign-btn" data-subtask-id="${s.subtask_template_id}" data-completion-id="${s.completion_id || ''}">${s.status === 'taken' ? '更換' : '＋ 指派'}</button>`}
+            ${s.status === 'taken' && s.completion_id ? `<button type="button" class="btn-text sub-unassign-btn" data-completion-id="${s.completion_id}" style="color:var(--red);">取消</button>` : ''}
+          </span>
         </div>`).join('')}
     </div>`;
 }
@@ -4772,7 +4868,7 @@ function upcomingCardHTML(t) {
       </div>`;
   }).join('');
   return `
-    <div class="upcoming-card" data-instance-id="${t.instance_id}" data-title="${escapeHtml(t.title)}">
+    <div class="upcoming-card" data-instance-id="${t.instance_id}" data-template-id="${t.template_id}" data-altar-id="${t.altar_id || ''}" data-title="${escapeHtml(t.title)}">
       <div class="upcoming-card-top">
         <span class="upcoming-card-title">${escapeHtml(t.title)}</span>
         <div style="display:flex; align-items:center; gap:10px;">
@@ -4790,7 +4886,26 @@ function bindUpcomingCardEvents(listEl) {
   listEl.querySelectorAll('.assign-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const card = e.target.closest('.upcoming-card');
-      openAssignModal(card.dataset.instanceId, card.dataset.title);
+      openAssignModal({ type: 'instance', instanceId: card.dataset.instanceId, title: card.dataset.title,
+        templateId: card.dataset.templateId, altarId: card.dataset.altarId || null });
+    });
+  });
+  listEl.querySelectorAll('.sub-assign-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const card = e.target.closest('.upcoming-card');
+      const row = e.target.closest('.subtask-status-row');
+      openAssignModal({ type: 'subtask', instanceId: card.dataset.instanceId, subtaskId: e.target.dataset.subtaskId,
+        completionId: e.target.dataset.completionId || null,
+        title: card.dataset.title + '　›　' + row.querySelector('.sub-title').textContent,
+        templateId: card.dataset.templateId, altarId: card.dataset.altarId || null });
+    });
+  });
+  listEl.querySelectorAll('.sub-unassign-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      if (!confirm('確定要取消這個子項目的指派嗎？')) return;
+      const { error } = await supabaseClient.from('task_subtask_completions').delete().eq('id', e.target.dataset.completionId);
+      if (error) { alert('取消失敗：' + error.message); return; }
+      await loadUpcomingTasks();
     });
   });
   listEl.querySelectorAll('.remove-assignment-btn').forEach(btn => {
@@ -5072,16 +5187,28 @@ function renderAdminCalendar() {
 
 /* ---------- Assign modal ---------- */
 
-function openAssignModal(instanceId, title) {
-  assignPendingInstanceId = instanceId;
-  document.getElementById('assign-modal-task-title').textContent = title;
+// ctx: { type: 'instance' | 'subtask', instanceId, subtaskId?, completionId?, title, templateId, altarId }
+let assignCtx = null;
+let assignTemplateGroupIds = null; // null = not loaded yet
+
+async function openAssignModal(ctx) {
+  assignCtx = ctx;
+  assignPendingInstanceId = ctx.instanceId;
+  assignTemplateGroupIds = null;
+  document.getElementById('assign-modal-task-title').textContent = ctx.title;
   document.getElementById('assign-search-input').value = '';
+  document.getElementById('assign-show-all').checked = false;
   document.getElementById('assign-search-results').innerHTML = '';
   document.getElementById('assign-modal').classList.add('show');
   document.getElementById('assign-search-input').focus();
+  const { data } = await supabaseClient.from('task_template_groups').select('group_id').eq('template_id', ctx.templateId);
+  assignTemplateGroupIds = (data || []).map(r => r.group_id);
 }
 document.getElementById('assign-modal-close-btn').addEventListener('click', () => {
   document.getElementById('assign-modal').classList.remove('show');
+});
+document.getElementById('assign-show-all').addEventListener('change', () => {
+  runAssignSearch(document.getElementById('assign-search-input').value.trim());
 });
 
 let assignSearchDebounce = null;
@@ -5090,6 +5217,30 @@ document.getElementById('assign-search-input').addEventListener('input', (e) => 
   const q = e.target.value.trim();
   assignSearchDebounce = setTimeout(() => runAssignSearch(q), 300);
 });
+
+// Same rule the LIFF pages enforce (tasks-api isTemplateVisible): a task is
+// open to everyone when it has no group limits and no altar; otherwise to
+// members of its groups, or anyone who can see its altar.
+async function computeEligibleUserIds(users) {
+  const eligible = new Set();
+  const ctx = assignCtx;
+  const groupIds = assignTemplateGroupIds || [];
+  if (groupIds.length === 0 && !ctx.altarId) { users.forEach(u => eligible.add(u.id)); return eligible; }
+  if (groupIds.length > 0) {
+    const { data } = await supabaseClient.from('task_group_members').select('user_id').in('group_id', groupIds).in('user_id', users.map(u => u.id));
+    (data || []).forEach(r => eligible.add(r.user_id));
+  }
+  if (ctx.altarId) {
+    for (const u of users) {
+      if (eligible.has(u.id)) continue;
+      try {
+        const { data, error } = await supabaseClient.rpc('is_altar_visible_to_user', { p_altar_id: ctx.altarId, p_user_id: u.id });
+        if (!error && data) eligible.add(u.id);
+      } catch (e) { /* treated as not eligible; admin can tick 顯示所有人 */ }
+    }
+  }
+  return eligible;
+}
 
 async function runAssignSearch(query) {
   const resultsEl = document.getElementById('assign-search-results');
@@ -5104,21 +5255,46 @@ async function runAssignSearch(query) {
   if (error) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
   if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">找不到符合的人員。</div>'; return; }
 
-  resultsEl.innerHTML = data.map(u => `
+  if (assignTemplateGroupIds === null) {
+    const { data: g } = await supabaseClient.from('task_template_groups').select('group_id').eq('template_id', assignCtx.templateId);
+    assignTemplateGroupIds = (g || []).map(r => r.group_id);
+  }
+  const eligible = await computeEligibleUserIds(data);
+  const showAll = document.getElementById('assign-show-all').checked;
+  const users = data.filter(u => showAll || eligible.has(u.id));
+  if (users.length === 0) {
+    resultsEl.innerHTML = '<div style="color:var(--ink-soft); font-size:12.5px; padding:8px 4px;">符合的人都沒有此工作的權限。勾選上方「顯示所有人」可強制指派。</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = users.map(u => `
     <div class="assign-result-row">
-      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}</span>
-      <button type="button" class="assign-pick-btn" data-user-id="${u.id}">指派</button>
+      <span>${escapeHtml(u.display_name || '—')}　${escapeHtml(u.phone || '')}${eligible.has(u.id) ? '' : '<span class="assign-badge-no">無權限</span>'}</span>
+      <button type="button" class="assign-pick-btn" data-user-id="${u.id}" data-eligible="${eligible.has(u.id) ? '1' : '0'}">指派</button>
     </div>
   `).join('');
 
   resultsEl.querySelectorAll('.assign-pick-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const userId = e.target.dataset.userId;
+      if (e.target.dataset.eligible !== '1' &&
+          !confirm('此人不在這項工作的適用群組／壇內，在 LINE 裡看不到這項工作（也無法完成它）。仍要指派嗎？')) return;
       btn.disabled = true;
       btn.textContent = '指派中…';
-      const { error: asgErr } = await supabaseClient
-        .from('task_assignments')
-        .insert({ instance_id: assignPendingInstanceId, user_id: userId, status: 'assigned', assigned_by: 'admin' });
+      let asgErr;
+      if (assignCtx.type === 'subtask') {
+        const patch = { assigned_user_id: userId, status: 'taken', completed_by: null, completed_at: null };
+        if (assignCtx.completionId) {
+          ({ error: asgErr } = await supabaseClient.from('task_subtask_completions').update(patch).eq('id', assignCtx.completionId));
+        } else {
+          ({ error: asgErr } = await supabaseClient.from('task_subtask_completions')
+            .insert({ instance_id: assignCtx.instanceId, subtask_template_id: assignCtx.subtaskId, assigned_user_id: userId, status: 'taken' }));
+        }
+      } else {
+        ({ error: asgErr } = await supabaseClient
+          .from('task_assignments')
+          .insert({ instance_id: assignPendingInstanceId, user_id: userId, status: 'assigned', assigned_by: 'admin' }));
+      }
       if (asgErr) {
         alert('指派失敗：' + asgErr.message);
         btn.disabled = false;
