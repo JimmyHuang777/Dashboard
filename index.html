@@ -477,6 +477,11 @@
         </div>
 
         <div class="modal-field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="ne-featured"> ⭐ 顯示在「群聖家園」最上方的「近期重要班程」</label>
+          <span class="modal-hint" style="margin:4px 0 0;">有權限看到此活動的成員，會在首頁最上方看到（活動日期過後自動消失）</span>
+        </div>
+
+        <div class="modal-field">
           <label>適用群組 Groups <span class="modal-hint" style="margin:0;">選填，不勾選則所有人都能看到這個活動</span></label>
           <div class="group-checkbox-list" id="ne-group-checkboxes"></div>
         </div>
@@ -636,6 +641,10 @@
           <div class="modal-field">
             <label>地點 Place <span class="modal-hint" style="margin:0;">選填</span></label>
             <input type="text" id="tpl-place" placeholder="例：大殿 Main hall">
+          </div>
+          <div class="modal-field">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="tpl-featured"> ⭐ 顯示在「群聖家園」最上方的「近期重要班程」</label>
+            <span class="modal-hint" style="margin:4px 0 0;">有權限看到此工作的成員，會在首頁最上方看到（結束日期過後自動消失）</span>
           </div>
           <div class="modal-field" id="tpl-once-date-field" style="display:none;">
             <label>日期 Date <span class="modal-hint" style="margin:0;">此工作只會在這一天出現一次</span></label>
@@ -1335,7 +1344,7 @@ async function refreshPendingBadges() {
 }
 
 async function loadEvents() {
-  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, liff_id, offers_transport, offers_lodging, altar_id').order('event_date', { ascending: false });
+  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, is_featured, liff_id, offers_transport, offers_lodging, altar_id').order('event_date', { ascending: false });
 
   if (!isSuperAdmin) {
     const eventIds = myRoles.map(r => r.event_id).filter(Boolean);
@@ -1879,6 +1888,7 @@ async function openEventModal(eventToEdit) {
   }
   renderEventGroupCheckboxes(checkedGroupIds);
 
+  document.getElementById('ne-featured').checked = !!(eventToEdit && eventToEdit.is_featured);
   await loadAltarsForPicker(document.getElementById('ne-altar'), eventToEdit ? (eventToEdit.altar_id || '') : '');
 
   document.getElementById('new-event-modal').classList.add('show');
@@ -1982,13 +1992,14 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
   const submitBtn = document.getElementById('ne-submit-btn');
   const editingId = document.getElementById('ne-editing-id').value;
   const altar_id = document.getElementById('ne-altar').value || null;
+  const is_featured = document.getElementById('ne-featured').checked;
   submitBtn.disabled = true;
 
   if (editingId) {
     submitBtn.textContent = '儲存中…';
     const { error: updateErr } = await supabaseClient
       .from('events')
-      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id })
+      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id, is_featured })
       .eq('id', editingId);
 
     submitBtn.disabled = false;
@@ -2014,7 +2025,7 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
 
   const { data, error } = await supabaseClient
     .from('events')
-    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id })
+    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id, is_featured })
     .select()
     .single();
 
@@ -4169,6 +4180,7 @@ async function openTemplateForm(tpl) {
   document.getElementById('tpl-recurrence').value = tpl ? tpl.recurrence : 'daily';
   document.getElementById('tpl-slots').value = tpl ? tpl.slots_per_instance : 1;
   document.getElementById('tpl-place').value = tpl ? (tpl.place || '') : '';
+  document.getElementById('tpl-featured').checked = !!(tpl && tpl.is_featured);
   document.getElementById('tpl-start-date').value = (tpl && tpl.recurrence !== 'once') ? (tpl.start_date || '') : '';
   document.getElementById('tpl-end-date').value = (tpl && tpl.recurrence !== 'once') ? (tpl.end_date || '') : '';
   document.getElementById('tpl-once-date').value = (tpl && tpl.recurrence === 'once') ? (tpl.start_date || '') : '';
@@ -4385,7 +4397,7 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
 
   const editingId = document.getElementById('tpl-editing-id').value;
   const altar_id = document.getElementById('tpl-altar').value || null;
-  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date, altar_id };
+  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date, altar_id, is_featured: document.getElementById('tpl-featured').checked };
 
   const submitBtn = document.getElementById('tpl-submit-btn');
   submitBtn.disabled = true;
