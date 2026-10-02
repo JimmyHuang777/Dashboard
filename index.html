@@ -277,6 +277,11 @@
   }
   .flow-item-row-labels { display: grid; grid-template-columns: 100px 100px 1fr 32px; gap: 8px; margin-bottom: 6px; }
   .flow-item-row-labels span { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+  .subtask-builder-row.in-section { margin-left: 14px; }
+  .section-builder-row { display: flex; gap: 8px; align-items: center; margin: 12px 0 8px; padding: 8px; background: var(--canvas); border-radius: 10px; }
+  .section-builder-row input { flex: 1; font-weight: 700; }
+  .section-builder-row .sec-add-btn { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; height: 36px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .subtask-status-section { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); margin-top: 6px; }
   .subtask-builder-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   .subtask-builder-row input {
     flex: 1; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px;
@@ -402,6 +407,7 @@
           <button type="button" class="dropdown-item" id="manage-groups-btn">群組 Groups</button>
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
           <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
+          <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
         </div>
       </div>
       <div class="topbar-dropdown" id="tan-affairs-dropdown">
@@ -664,6 +670,7 @@
             <label>子項目清單 Subtasks <span class="modal-hint" style="margin:0;">選填，認領者可在每次執行時勾選完成</span></label>
             <div id="subtask-builder-list"></div>
             <button type="button" class="btn-add-field" id="add-subtask-btn">＋ 新增子項目 Add subtask</button>
+            <button type="button" class="btn-add-field" id="add-section-btn">＋ 新增分區 Add section</button>
           </div>
           <div class="modal-field">
             <label>所屬壇 Altar <span class="modal-hint" style="margin:0;">選填，選定後該壇及其下層壇都能看到；上層壇的工作也會自動出現在下層壇</span></label>
@@ -917,6 +924,25 @@
 
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="flows-modal-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="profiles-modal">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2>成員資料 Member Profiles</h2>
+      <p class="modal-sub">成員在「群聖家園」填寫的個人資訊與親友資訊（僅超級管理員可查看）。</p>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+        <input type="text" id="profiles-search" placeholder="搜尋姓名、電話、佛堂、天職、關係…" style="flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+        <select id="profiles-filter-kind" style="padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+          <option value="">全部</option><option value="self">只看本人</option><option value="family">只看親友</option>
+        </select>
+        <button type="button" class="btn-new-event" id="profiles-export-btn" style="background:var(--accent-dark);">匯出 CSV Export</button>
+      </div>
+      <div id="profiles-count" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:8px;"></div>
+      <div style="max-height:60vh; overflow:auto;" id="profiles-list"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="profiles-close-btn">關閉</button>
       </div>
     </div>
   </div>
@@ -2310,6 +2336,77 @@ document.getElementById('tasks-modal-close-btn').addEventListener('click', () =>
 /* =========================================================
    HOME / ENTRY LINK (群聖家園)
    ========================================================= */
+
+/* ---------- Member Profiles (個人資訊 + 親友資訊) ---------- */
+
+let profileRows = [];
+
+async function loadProfileRows() {
+  const listEl = document.getElementById('profiles-list');
+  listEl.innerHTML = '<div style="color:var(--ink-soft); font-size:13px;">載入中…</div>';
+  const [selfRes, famRes] = await Promise.all([
+    supabaseClient.from('user_profiles').select('*, users(display_name)').order('updated_at', { ascending: false }).limit(5000),
+    supabaseClient.from('family_members').select('*, users(display_name)').order('created_at', { ascending: true }).limit(5000),
+  ]);
+  if (selfRes.error || famRes.error) {
+    listEl.innerHTML = '<div style="color:var(--red);">' + escapeHtml((selfRes.error || famRes.error).message) + '</div>';
+    return;
+  }
+  const owner = r => (r.users && r.users.display_name) || '';
+  profileRows = [
+    ...(selfRes.data || []).map(r => ({ kind: 'self', owner: owner(r), relationship: '本人', ...pickPerson(r) })),
+    ...(famRes.data || []).map(r => ({ kind: 'family', owner: owner(r), relationship: r.relationship, ...pickPerson(r) })),
+  ].sort((a, b) => a.owner.localeCompare(b.owner, 'zh-Hant') || (a.kind === 'self' ? -1 : 1));
+  renderProfileRows();
+}
+
+function pickPerson(r) {
+  return { altar_name: r.altar_name, full_name: r.full_name, gender: r.gender, duty: r.duty, shrine: r.shrine, phone: r.phone };
+}
+
+function filteredProfileRows() {
+  const q = document.getElementById('profiles-search').value.trim().toLowerCase();
+  const kind = document.getElementById('profiles-filter-kind').value;
+  return profileRows.filter(r => {
+    if (kind && r.kind !== kind) return false;
+    if (!q) return true;
+    return [r.owner, r.relationship, r.altar_name, r.full_name, r.gender, r.duty, r.shrine, r.phone]
+      .some(v => String(v || '').toLowerCase().includes(q));
+  });
+}
+
+function renderProfileRows() {
+  const rows = filteredProfileRows();
+  document.getElementById('profiles-count').textContent = '共 ' + rows.length + ' 筆（本人 ' + rows.filter(r => r.kind === 'self').length + '，親友 ' + rows.filter(r => r.kind === 'family').length + '）';
+  const listEl = document.getElementById('profiles-list');
+  if (rows.length === 0) { listEl.innerHTML = '<div class="no-groups-note">沒有符合的資料。</div>'; return; }
+  listEl.innerHTML = '<table><thead><tr><th>LINE 名稱</th><th>關係</th><th>姓名</th><th>公堂組別</th><th>性別</th><th>天職</th><th>佛堂</th><th>電話</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td>' + escapeHtml(r.owner) + '</td><td>' + escapeHtml(r.relationship || '') + '</td><td><strong>' + escapeHtml(r.full_name || '') + '</strong></td><td>' +
+      escapeHtml(r.altar_name || '') + '</td><td>' + escapeHtml(r.gender || '') + '</td><td>' + escapeHtml(r.duty || '') + '</td><td>' + escapeHtml(r.shrine || '') + '</td><td>' + escapeHtml(r.phone || '') + '</td></tr>').join('') +
+    '</tbody></table>';
+}
+
+function exportProfilesCsv() {
+  const rows = filteredProfileRows();
+  const headers = ['LINE 名稱', '類別', '與本人關係', '姓名', '公堂組別', '性別', '天職', '佛堂', '電話'];
+  const lines = [headers, ...rows.map(r => [r.owner, r.kind === 'self' ? '本人' : '親友', r.relationship, r.full_name, r.altar_name, r.gender, r.duty, r.shrine, r.phone])]
+    .map(row => row.map(csvEscape).join(','));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '成員資料_' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('manage-profiles-btn').addEventListener('click', () => {
+  document.getElementById('profiles-modal').classList.add('show');
+  loadProfileRows();
+});
+document.getElementById('profiles-close-btn').addEventListener('click', () => document.getElementById('profiles-modal').classList.remove('show'));
+document.getElementById('profiles-search').addEventListener('input', renderProfileRows);
+document.getElementById('profiles-filter-kind').addEventListener('change', renderProfileRows);
+document.getElementById('profiles-export-btn').addEventListener('click', exportProfilesCsv);
 
 document.getElementById('manage-home-btn').addEventListener('click', () => {
   document.getElementById('home-modal').classList.add('show');
@@ -4155,7 +4252,9 @@ document.getElementById('new-template-btn').addEventListener('click', () => open
 
 /* ---------- Subtask builder (inside the template form) ---------- */
 
-function addSubtaskBuilderRow(prefill) {
+// The list is flat and ordered: section headers (.section-builder-row) and
+// items (.subtask-builder-row). Each item belongs to the header above it.
+function addSubtaskBuilderRow(prefill, afterEl) {
   const id = 'sb-' + (subtaskBuilderCount++);
   const wrap = document.createElement('div');
   wrap.className = 'subtask-builder-row';
@@ -4165,11 +4264,68 @@ function addSubtaskBuilderRow(prefill) {
     <input type="text" class="sb-title" placeholder="例：關閉電燈" value="${prefill ? escapeHtml(prefill.title || '') : ''}">
     <button type="button" class="remove-field-btn">✕</button>
   `;
+  const list = document.getElementById('subtask-builder-list');
+  if (afterEl) afterEl.insertAdjacentElement('afterend', wrap); else list.appendChild(wrap);
+  wrap.querySelector('.remove-field-btn').addEventListener('click', () => { wrap.remove(); refreshSubtaskIndent(); });
+  refreshSubtaskIndent();
+  return wrap;
+}
+
+function addSectionBuilderRow(name) {
+  const wrap = document.createElement('div');
+  wrap.className = 'section-builder-row';
+  wrap.innerHTML = `
+    <input type="text" class="sec-title" placeholder="分區名稱（例：開場前）" value="${escapeHtml(name || '')}">
+    <button type="button" class="sec-add-btn">＋ 項目</button>
+    <button type="button" class="remove-field-btn" title="移除此分區標題（項目會併入上一個分區）">✕</button>
+  `;
   document.getElementById('subtask-builder-list').appendChild(wrap);
-  wrap.querySelector('.remove-field-btn').addEventListener('click', () => wrap.remove());
+  wrap.querySelector('.sec-add-btn').addEventListener('click', () => {
+    let last = wrap;
+    while (last.nextElementSibling && last.nextElementSibling.classList.contains('subtask-builder-row')) last = last.nextElementSibling;
+    addSubtaskBuilderRow(null, last).querySelector('.sb-title').focus();
+  });
+  wrap.querySelector('.remove-field-btn').addEventListener('click', () => { wrap.remove(); refreshSubtaskIndent(); });
+  refreshSubtaskIndent();
+  return wrap;
+}
+
+function refreshSubtaskIndent() {
+  let inSection = false;
+  document.querySelectorAll('#subtask-builder-list > div').forEach(el => {
+    if (el.classList.contains('section-builder-row')) inSection = true;
+    else el.classList.toggle('in-section', inSection);
+  });
+}
+
+function renderSubtaskBuilder(subs) {
+  document.getElementById('subtask-builder-list').innerHTML = '';
+  let current;
+  (subs || []).forEach(x => {
+    const sec = x.section || null;
+    if (sec && sec !== current) addSectionBuilderRow(sec);
+    current = sec;
+    addSubtaskBuilderRow(x);
+  });
+}
+
+// In DOM order, tagging each item with the section header above it.
+function collectSubtaskBuilder() {
+  const out = [];
+  let section = null;
+  document.querySelectorAll('#subtask-builder-list > div').forEach(el => {
+    if (el.classList.contains('section-builder-row')) {
+      section = el.querySelector('.sec-title').value.trim() || null;
+    } else {
+      const title = el.querySelector('.sb-title').value.trim();
+      if (title) out.push({ id: el.dataset.subtaskId || null, title, section });
+    }
+  });
+  return out;
 }
 
 document.getElementById('add-subtask-btn').addEventListener('click', () => addSubtaskBuilderRow());
+document.getElementById('add-section-btn').addEventListener('click', () => addSectionBuilderRow('').querySelector('.sec-title').focus());
 
 async function openTemplateForm(tpl) {
   document.getElementById('template-form').style.display = 'block';
@@ -4193,10 +4349,10 @@ async function openTemplateForm(tpl) {
   if (tpl) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, title, sort_order')
+      .select('id, title, sort_order, section')
       .eq('template_id', tpl.id)
       .order('sort_order', { ascending: true });
-    (subs || []).forEach(s => addSubtaskBuilderRow(s));
+    renderSubtaskBuilder(subs || []);
   }
 
   await loadGroups();
@@ -4266,8 +4422,7 @@ document.getElementById('tpl-preset-apply-btn').addEventListener('click', () => 
     document.getElementById('tpl-end-date').value = preset.end_date || '';
   }
 
-  document.getElementById('subtask-builder-list').innerHTML = '';
-  (preset.subtasks || []).forEach(s => addSubtaskBuilderRow({ title: s.title }));
+  renderSubtaskBuilder((preset.subtasks || []).map(x => ({ title: x.title, section: x.section })));
 
   const presetGroupIds = new Set((preset.group_ids || []).filter(id => allGroups.some(g => g.id === id)));
   renderTplGroupCheckboxes(presetGroupIds);
@@ -4299,10 +4454,7 @@ document.getElementById('tpl-save-preset-btn').addEventListener('click', async (
   const start_date = recurrence !== 'once' ? (document.getElementById('tpl-start-date').value || null) : null;
   const end_date = recurrence !== 'once' ? (document.getElementById('tpl-end-date').value || null) : null;
 
-  const subtasks = [...document.querySelectorAll('#subtask-builder-list .subtask-builder-row')]
-    .map(row => row.querySelector('.sb-title').value.trim())
-    .filter(Boolean)
-    .map(t => ({ title: t }));
+  const subtasks = collectSubtaskBuilder().map(({ title, section }) => ({ title, section }));
 
   const group_ids = [...document.querySelectorAll('#tpl-group-checkboxes input:checked')].map(cb => cb.value);
 
@@ -4426,13 +4578,7 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   // insert rows that are new, delete rows that were removed from the
   // form. Preserving ids for untouched rows keeps their completion
   // history intact instead of wiping it on every save.
-  const subtaskRows = [...document.querySelectorAll('#subtask-builder-list .subtask-builder-row')]
-    .map((row, idx) => ({
-      id: row.dataset.subtaskId || null,
-      title: row.querySelector('.sb-title').value.trim(),
-      sort_order: idx,
-    }))
-    .filter(r => r.title);
+  const subtaskRows = collectSubtaskBuilder().map((r, idx) => ({ ...r, sort_order: idx }));
 
   const { data: existingSubs } = await supabaseClient
     .from('task_subtask_templates')
@@ -4447,9 +4593,9 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   }
   for (const row of subtaskRows) {
     if (row.id) {
-      await supabaseClient.from('task_subtask_templates').update({ title: row.title, sort_order: row.sort_order }).eq('id', row.id);
+      await supabaseClient.from('task_subtask_templates').update({ title: row.title, section: row.section, sort_order: row.sort_order }).eq('id', row.id);
     } else {
-      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, sort_order: row.sort_order });
+      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, section: row.section, sort_order: row.sort_order });
     }
   }
 
@@ -4537,7 +4683,7 @@ async function loadUpcomingTasks() {
   if (templateIds.length > 0) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, template_id, title, sort_order')
+      .select('id, template_id, title, sort_order, section')
       .in('template_id', templateIds)
       .order('sort_order', { ascending: true });
     subtaskTemplates = subs || [];
@@ -4554,6 +4700,7 @@ async function loadUpcomingTasks() {
       const activeOrDone = status === 'taken' || status === 'completed';
       return {
         title: s.title,
+        section: s.section || null,
         status,
         assigned_name: row && activeOrDone ? row.users?.display_name || null : null,
       };
@@ -4595,7 +4742,8 @@ function subtaskStatusListHTML(t) {
   if (!t.subtasks || t.subtasks.length === 0) return '';
   return `
     <div class="subtask-status-list">
-      ${t.subtasks.map(s => `
+      ${t.subtasks.map((s, i) => `
+        ${s.section && (i === 0 || t.subtasks[i - 1].section !== s.section) ? `<div class="subtask-status-section">${escapeHtml(s.section)}</div>` : ''}
         <div class="subtask-status-row">
           <span class="sub-title ${s.status === 'completed' ? 'done' : ''}">${escapeHtml(s.title)}</span>
           <span class="subtask-status-badge ${s.status}">${SUBTASK_STATUS_LABELS[s.status] || s.status}</span>
