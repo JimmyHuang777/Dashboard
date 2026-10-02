@@ -333,6 +333,15 @@
   .subtask-status-row .sub-actions { display: flex; gap: 2px; margin-left: auto; }
   .subtask-status-row .btn-text { padding: 2px 6px; font-size: 12px; }
   .assign-badge-no { font-size: 11px; color: var(--amber); background: var(--amber-bg); padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .subtask-status-row { flex-wrap: wrap; }
+  .subtask-status-row .sub-count { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 20px; background: var(--amber-bg); color: var(--amber); }
+  .subtask-status-row .sub-count.full { background: var(--blue-bg); color: var(--blue); }
+  .subtask-status-row .sub-people { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-left: auto; }
+  .sub-person { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; background: var(--blue-bg); color: var(--blue); border-radius: 20px; padding: 2px 3px 2px 9px; }
+  .sub-person.completed { background: var(--amber-bg); color: var(--amber); padding-right: 9px; }
+  .sub-unassign-btn { border: none; background: rgba(0,0,0,.08); color: inherit; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; cursor: pointer; line-height: 1; padding: 0; }
+  .sb-slots-wrap { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--ink-soft); flex: none; }
+  .sb-slots-wrap .sb-slots { width: 46px !important; flex: none !important; padding: 6px 4px; text-align: center; }
   .subtask-status-row .sub-title.done { text-decoration: line-through; color: var(--ink-soft); }
   .subtask-status-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
   .subtask-status-badge.unassigned { background: var(--canvas); color: var(--ink-soft); }
@@ -592,7 +601,7 @@
         <div class="table-wrap" style="margin-bottom: 14px;">
           <table>
             <thead>
-              <tr><th>名稱</th><th>頻率</th><th>需求人數</th><th>狀態</th><th style="text-align:right;">操作</th></tr>
+              <tr><th>名稱</th><th>頻率</th><th>子項目</th><th>狀態</th><th style="text-align:right;">操作</th></tr>
             </thead>
             <tbody id="task-templates-list"></tbody>
           </table>
@@ -626,10 +635,6 @@
                 <option value="monthly">每月 Monthly</option>
                 <option value="once">單次 One-time (non-routine)</option>
               </select>
-            </div>
-            <div class="modal-field">
-              <label>需求人數 Slots</label>
-              <input type="number" id="tpl-slots" min="1" value="1">
             </div>
           </div>
           <div class="modal-field" id="tpl-weekly-field" style="display:none;">
@@ -4276,9 +4281,9 @@ function switchTasksTab(tab) {
 /* ---------- Templates ---------- */
 
 async function loadTaskTemplates() {
-  const { data, error } = await supabaseClient.from('task_templates').select('*').order('created_at', { ascending: true });
+  const { data, error } = await supabaseClient.from('task_templates').select('*, task_subtask_templates ( count )').order('created_at', { ascending: true });
   if (error) { console.error(error); return; }
-  taskTemplates = data || [];
+  taskTemplates = (data || []).map(t => ({ ...t, subtask_count: (t.task_subtask_templates && t.task_subtask_templates[0]) ? t.task_subtask_templates[0].count : 0 }));
   renderTaskTemplates();
   populateTaskSelect();
 }
@@ -4295,7 +4300,7 @@ function renderTaskTemplates() {
     <tr data-template-id="${t.id}">
       <td><strong>${escapeHtml(t.title)}</strong>${t.description ? `<div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">${escapeHtml(t.description)}</div>` : ''}</td>
       <td>${RECURRENCE_LABELS[t.recurrence] || t.recurrence}</td>
-      <td>${t.slots_per_instance}</td>
+      <td>${t.subtask_count != null ? t.subtask_count + ' 項' : '—'}</td>
       <td>
         <span class="status-select ${t.is_active ? 'confirmed' : 'cancelled'}" style="cursor:default;">
           ${t.is_active ? '啟用中' : '已停用'}
@@ -4350,6 +4355,7 @@ function addSubtaskBuilderRow(prefill, afterEl) {
   wrap.dataset.subtaskId = (prefill && prefill.id) || ''; // existing row's DB id, blank if new
   wrap.innerHTML = `
     <input type="text" class="sb-title" placeholder="例：關閉電燈" value="${prefill ? escapeHtml(prefill.title || '') : ''}">
+    <span class="sb-slots-wrap" title="這個子項目需要幾位負責人"><input type="number" class="sb-slots" min="1" max="50" value="${prefill && prefill.slots ? prefill.slots : 1}">人</span>
     <button type="button" class="remove-field-btn">✕</button>
   `;
   const list = document.getElementById('subtask-builder-list');
@@ -4406,7 +4412,7 @@ function collectSubtaskBuilder() {
       section = el.querySelector('.sec-title').value.trim() || null;
     } else {
       const title = el.querySelector('.sb-title').value.trim();
-      if (title) out.push({ id: el.dataset.subtaskId || null, title, section });
+      if (title) out.push({ id: el.dataset.subtaskId || null, title, section, slots: Math.max(1, Math.min(50, parseInt(el.querySelector('.sb-slots').value, 10) || 1)) });
     }
   });
   return out;
@@ -4422,7 +4428,6 @@ async function openTemplateForm(tpl) {
   document.getElementById('tpl-title').value = tpl ? tpl.title : '';
   document.getElementById('tpl-description').value = tpl ? (tpl.description || '') : '';
   document.getElementById('tpl-recurrence').value = tpl ? tpl.recurrence : 'daily';
-  document.getElementById('tpl-slots').value = tpl ? tpl.slots_per_instance : 1;
   document.getElementById('tpl-place').value = tpl ? (tpl.place || '') : '';
   document.getElementById('tpl-featured').checked = !!(tpl && tpl.is_featured);
   document.getElementById('tpl-start-date').value = (tpl && tpl.recurrence !== 'once') ? (tpl.start_date || '') : '';
@@ -4437,7 +4442,7 @@ async function openTemplateForm(tpl) {
   if (tpl) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, title, sort_order, section')
+      .select('id, title, sort_order, section, slots')
       .eq('template_id', tpl.id)
       .order('sort_order', { ascending: true });
     renderSubtaskBuilder(subs || []);
@@ -4542,7 +4547,7 @@ document.getElementById('tpl-save-preset-btn').addEventListener('click', async (
   const start_date = recurrence !== 'once' ? (document.getElementById('tpl-start-date').value || null) : null;
   const end_date = recurrence !== 'once' ? (document.getElementById('tpl-end-date').value || null) : null;
 
-  const subtasks = collectSubtaskBuilder().map(({ title, section }) => ({ title, section }));
+  const subtasks = collectSubtaskBuilder().map(({ title, section, slots }) => ({ title, section, slots }));
 
   const group_ids = [...document.querySelectorAll('#tpl-group-checkboxes input:checked')].map(cb => cb.value);
 
@@ -4602,7 +4607,6 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   const title = document.getElementById('tpl-title').value.trim();
   const description = document.getElementById('tpl-description').value.trim() || null;
   const recurrence = document.getElementById('tpl-recurrence').value;
-  const slots = parseInt(document.getElementById('tpl-slots').value, 10) || 1;
 
   if (!title) {
     errorEl.textContent = '請填寫工作名稱。';
@@ -4637,7 +4641,7 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
 
   const editingId = document.getElementById('tpl-editing-id').value;
   const altar_id = document.getElementById('tpl-altar').value || null;
-  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: slots, place, start_date, end_date, altar_id, is_featured: document.getElementById('tpl-featured').checked };
+  const payload = { title, description, recurrence, recurrence_detail, slots_per_instance: 1, place, start_date, end_date, altar_id, is_featured: document.getElementById('tpl-featured').checked };
 
   const submitBtn = document.getElementById('tpl-submit-btn');
   submitBtn.disabled = true;
@@ -4681,9 +4685,9 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   }
   for (const row of subtaskRows) {
     if (row.id) {
-      await supabaseClient.from('task_subtask_templates').update({ title: row.title, section: row.section, sort_order: row.sort_order }).eq('id', row.id);
+      await supabaseClient.from('task_subtask_templates').update({ title: row.title, section: row.section, slots: row.slots, sort_order: row.sort_order }).eq('id', row.id);
     } else {
-      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, section: row.section, sort_order: row.sort_order });
+      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, section: row.section, slots: row.slots, sort_order: row.sort_order });
     }
   }
 
@@ -4771,7 +4775,7 @@ async function loadUpcomingTasks() {
   if (templateIds.length > 0) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, template_id, title, sort_order, section')
+      .select('id, template_id, title, sort_order, section, slots')
       .in('template_id', templateIds)
       .order('sort_order', { ascending: true });
     subtaskTemplates = subs || [];
@@ -4783,16 +4787,24 @@ async function loadUpcomingTasks() {
   upcomingTasks = activeInstances.map(inst => {
     const templateSubtasks = subtaskTemplates.filter(s => s.template_id === inst.template_id);
     const subtasks = templateSubtasks.map(s => {
-      const row = subtaskCompletions.find(c => c.subtask_template_id === s.id && c.instance_id === inst.id);
-      const status = row ? row.status : 'unassigned';
-      const activeOrDone = status === 'taken' || status === 'completed';
+      const rows = subtaskCompletions.filter(c => c.subtask_template_id === s.id && c.instance_id === inst.id);
+      const slots = Math.max(1, s.slots || 1);
+      const people = rows
+        .filter(r => r.status === 'taken' || r.status === 'completed')
+        .map(r => ({ completion_id: r.id, user_id: r.assigned_user_id, name: r.users?.display_name || '—', status: r.status }));
+      // Aggregate status (drives the stat tiles / badges): any person on it
+      // counts as 已指派 until every slot is filled and all are done.
+      let status;
+      if (people.length >= slots && people.every(p => p.status === 'completed')) status = 'completed';
+      else if (people.length > 0) status = 'taken';
+      else status = rows.some(r => r.status === 'incomplete') ? 'incomplete' : 'unassigned';
       return {
         subtask_template_id: s.id,
-        completion_id: row ? row.id : null,
         title: s.title,
         section: s.section || null,
+        slots,
+        people,
         status,
-        assigned_name: row && activeOrDone ? row.users?.display_name || null : null,
       };
     });
     return {
@@ -4802,7 +4814,6 @@ async function loadUpcomingTasks() {
       occurrence_date: inst.occurrence_date,
       title: inst.task_templates.title,
       place: inst.task_templates.place || null,
-      slots_total: inst.task_templates.slots_per_instance,
       assignments: assignments.filter(a => a.instance_id === inst.id),
       subtasks,
       subtasks_total: subtasks.length,
@@ -4836,13 +4847,12 @@ function subtaskStatusListHTML(t) {
     <div class="subtask-status-list">
       ${t.subtasks.map((s, i) => `
         ${s.section && (i === 0 || t.subtasks[i - 1].section !== s.section) ? `<div class="subtask-status-section">${escapeHtml(s.section)}</div>` : ''}
-        <div class="subtask-status-row">
+        <div class="subtask-status-row" data-subtask-id="${s.subtask_template_id}">
           <span class="sub-title ${s.status === 'completed' ? 'done' : ''}">${escapeHtml(s.title)}</span>
-          <span class="subtask-status-badge ${s.status}">${SUBTASK_STATUS_LABELS[s.status] || s.status}</span>
-          ${s.assigned_name ? `<span class="sub-by">${escapeHtml(s.assigned_name)}</span>` : ''}
-          <span class="sub-actions">
-            ${s.status === 'completed' ? '' : `<button type="button" class="btn-text sub-assign-btn" data-subtask-id="${s.subtask_template_id}" data-completion-id="${s.completion_id || ''}">${s.status === 'taken' ? '更換' : '＋ 指派'}</button>`}
-            ${s.status === 'taken' && s.completion_id ? `<button type="button" class="btn-text sub-unassign-btn" data-completion-id="${s.completion_id}" style="color:var(--red);">取消</button>` : ''}
+          <span class="sub-count ${s.people.length >= s.slots ? 'full' : ''}" title="已指派／需要人數">${s.people.length}/${s.slots}</span>
+          <span class="sub-people">
+            ${s.people.map(p => `<span class="sub-person ${p.status}">${escapeHtml(p.name)}${p.status === 'completed' ? ' ✓' : `<button type="button" class="sub-unassign-btn" data-completion-id="${p.completion_id}" title="取消指派">✕</button>`}</span>`).join('')}
+            ${s.people.length < s.slots ? `<button type="button" class="btn-text sub-assign-btn" data-subtask-id="${s.subtask_template_id}">＋ 指派</button>` : ''}
           </span>
         </div>`).join('')}
     </div>`;
@@ -4851,7 +4861,6 @@ function subtaskStatusListHTML(t) {
 const ASSIGNMENT_STATUS_LABELS = { claimed: '已認領', assigned: '已指派', completed: '已完成', confirmed: '已確認' };
 
 function upcomingCardHTML(t) {
-  const isFull = t.assignments.length >= t.slots_total;
   const names = t.assignments.map(a => {
     const label = ASSIGNMENT_STATUS_LABELS[a.status] || a.status;
     const extraBtn = a.status === 'completed'
@@ -4872,8 +4881,6 @@ function upcomingCardHTML(t) {
       <div class="upcoming-card-top">
         <span class="upcoming-card-title">${escapeHtml(t.title)}</span>
         <div style="display:flex; align-items:center; gap:10px;">
-          <span class="upcoming-card-slots ${isFull ? 'full' : ''}">${t.assignments.length} / ${t.slots_total} 人</span>
-          <button type="button" class="btn-text assign-btn">＋ 指派</button>
         </div>
       </div>
       ${t.place ? `<div class="upcoming-place">📍 ${escapeHtml(t.place)}</div>` : ''}
@@ -4895,14 +4902,13 @@ function bindUpcomingCardEvents(listEl) {
       const card = e.target.closest('.upcoming-card');
       const row = e.target.closest('.subtask-status-row');
       openAssignModal({ type: 'subtask', instanceId: card.dataset.instanceId, subtaskId: e.target.dataset.subtaskId,
-        completionId: e.target.dataset.completionId || null,
         title: card.dataset.title + '　›　' + row.querySelector('.sub-title').textContent,
         templateId: card.dataset.templateId, altarId: card.dataset.altarId || null });
     });
   });
   listEl.querySelectorAll('.sub-unassign-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-      if (!confirm('確定要取消這個子項目的指派嗎？')) return;
+      if (!confirm('確定要取消這位的指派嗎？')) return;
       const { error } = await supabaseClient.from('task_subtask_completions').delete().eq('id', e.target.dataset.completionId);
       if (error) { alert('取消失敗：' + error.message); return; }
       await loadUpcomingTasks();
@@ -5167,7 +5173,7 @@ function renderAdminCalendar() {
     const day = i + 1;
     const dateStr = adminToDateStr(y, m, day);
     const dayTasks = byDate[dateStr] || [];
-    const allFull = dayTasks.length > 0 && dayTasks.every(t => t.assignments.length >= t.slots_total);
+    const allFull = dayTasks.length > 0 && dayTasks.every(t => t.subtasks.length > 0 && t.subtasks.every(x => x.people.length >= x.slots));
     const classes = ['admin-cal-day'];
     if (dateStr === todayStr) classes.push('today');
     if (dateStr === adminCalSelectedDate) classes.push('selected');
@@ -5283,11 +5289,22 @@ async function runAssignSearch(query) {
       btn.textContent = '指派中…';
       let asgErr;
       if (assignCtx.type === 'subtask') {
-        const patch = { assigned_user_id: userId, status: 'taken', completed_by: null, completed_at: null };
-        if (assignCtx.completionId) {
-          ({ error: asgErr } = await supabaseClient.from('task_subtask_completions').update(patch).eq('id', assignCtx.completionId));
+        const { data: rowsRaw } = await supabaseClient.from('task_subtask_completions')
+          .select('id, status, assigned_user_id').eq('instance_id', assignCtx.instanceId).eq('subtask_template_id', assignCtx.subtaskId);
+        const rows = rowsRaw || [];
+        const { data: stRow } = await supabaseClient.from('task_subtask_templates').select('slots').eq('id', assignCtx.subtaskId).maybeSingle();
+        const slots = Math.max(1, (stRow && stRow.slots) || 1);
+        const mine = rows.find(r => r.assigned_user_id === userId);
+        const live = rows.filter(r => r.status === 'taken' || r.status === 'completed').length;
+        if (mine && mine.status !== 'incomplete') {
+          asgErr = mine.status === 'completed' ? { message: '這個人已經完成這個子項目了。' } : null;
+        } else if (live >= slots) {
+          asgErr = { message: '這個子項目名額已滿（' + slots + ' 人）。可先取消其中一位，或調高人數。' };
         } else {
-          ({ error: asgErr } = await supabaseClient.from('task_subtask_completions')
+          const reuse = mine || rows.find(r => r.status === 'incomplete');
+          const patch = { assigned_user_id: userId, status: 'taken', completed_by: null, completed_at: null };
+          if (reuse) ({ error: asgErr } = await supabaseClient.from('task_subtask_completions').update(patch).eq('id', reuse.id));
+          else ({ error: asgErr } = await supabaseClient.from('task_subtask_completions')
             .insert({ instance_id: assignCtx.instanceId, subtask_template_id: assignCtx.subtaskId, assigned_user_id: userId, status: 'taken' }));
         }
       } else {
