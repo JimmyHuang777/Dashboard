@@ -523,6 +523,11 @@
         </div>
 
         <div class="modal-field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="ne-allow-dup"> 🔁 允許同一位用戶重複報名</label>
+          <span class="modal-hint" style="margin:4px 0 0;">預設不允許。勾選後，同一人可以用相同的姓名與電話一再送出報名</span>
+        </div>
+
+        <div class="modal-field">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="ne-featured"> ⭐ 顯示在「群聖家園」最上方的「近期重要班程」</label>
           <span class="modal-hint" style="margin:4px 0 0;">有權限看到此活動的成員，會在首頁最上方看到（活動日期過後自動消失）</span>
         </div>
@@ -1009,7 +1014,7 @@
   <div class="modal-overlay" id="cal-modal">
     <div class="modal-box" style="max-width: 1040px; width: 96vw;">
       <h2>行事曆 Calendar</h2>
-      <p class="modal-sub">綠色＝行事曆行程（可在此新增／編輯／匯入 Word）；橘色＝班程報名；紫色＝單次工作。班程與工作請到各自的管理頁編輯。</p>
+      <p class="modal-sub">綠色＝行事曆行程（可在此新增／編輯／匯入 Word）；橘色＝報名（班程）；紫色＝工作（含每日／每週／每月的排程，預設不顯示，勾選「工作」才會出現）。班程與工作請到各自的管理頁編輯。</p>
       <div class="ccal-nav">
         <button type="button" class="btn-cancel" id="ccal-prev">‹</button>
         <span class="ttl" id="ccal-title">—</span>
@@ -1018,6 +1023,11 @@
         <span style="flex:1;"></span>
         <button type="button" class="btn-cancel" id="ccal-add-btn">＋ 新增行程</button>
         <button type="button" class="btn-new-event" id="ccal-import-btn" style="background:var(--accent-dark);">匯入 Word</button>
+      </div>
+      <div style="display:flex; gap:16px; margin-bottom:8px; font-size:13.5px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-entry" checked><span style="width:10px;height:10px;border-radius:3px;background:#06C755;display:inline-block;"></span>行事曆</label>
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-event" checked><span style="width:10px;height:10px;border-radius:3px;background:#F97316;display:inline-block;"></span>報名</label>
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-task"><span style="width:10px;height:10px;border-radius:3px;background:#7C3AED;display:inline-block;"></span>工作</label>
       </div>
       <div class="ccal-grid" id="ccal-grid"></div>
       <div id="ccal-list" style="margin-top:12px; max-height:26vh; overflow:auto;"></div>
@@ -1530,7 +1540,7 @@ async function refreshPendingBadges() {
 }
 
 async function loadEvents() {
-  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, is_featured, liff_id, offers_transport, offers_lodging, altar_id').order('event_date', { ascending: false });
+  let query = supabaseClient.from('events').select('id, name, slug, form_schema, event_date, location, description, is_active, is_featured, liff_id, offers_transport, offers_lodging, altar_id, allow_duplicate_registration').order('event_date', { ascending: false });
 
   if (!isSuperAdmin) {
     const eventIds = myRoles.map(r => r.event_id).filter(Boolean);
@@ -2187,6 +2197,7 @@ async function openEventModal(eventToEdit) {
   renderEventGroupCheckboxes(checkedGroupIds);
 
   document.getElementById('ne-featured').checked = !!(eventToEdit && eventToEdit.is_featured);
+  document.getElementById('ne-allow-dup').checked = !!(eventToEdit && eventToEdit.allow_duplicate_registration);
   await loadAltarsForPicker(document.getElementById('ne-altar'), eventToEdit ? (eventToEdit.altar_id || '') : '');
 
   document.getElementById('new-event-modal').classList.add('show');
@@ -2291,13 +2302,14 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
   const editingId = document.getElementById('ne-editing-id').value;
   const altar_id = document.getElementById('ne-altar').value || null;
   const is_featured = document.getElementById('ne-featured').checked;
+  const allow_duplicate_registration = document.getElementById('ne-allow-dup').checked;
   submitBtn.disabled = true;
 
   if (editingId) {
     submitBtn.textContent = '儲存中…';
     const { error: updateErr } = await supabaseClient
       .from('events')
-      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id, is_featured })
+      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id, is_featured, allow_duplicate_registration })
       .eq('id', editingId);
 
     submitBtn.disabled = false;
@@ -2323,7 +2335,7 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
 
   const { data, error } = await supabaseClient
     .from('events')
-    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id, is_featured })
+    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id, is_featured, allow_duplicate_registration })
     .select()
     .single();
 
@@ -2860,7 +2872,9 @@ function buildImportRows(table, guess, map, year) {
 
 /* ---------- 行事曆 Calendar (Dashboard) ---------- */
 
-const CAL_KIND = { entry: '行事曆', event: '班程報名', task: '單次工作' };
+const CAL_KIND = { entry: '行事曆', event: '報名', task: '工作' };
+let ccalFilters = { entry: true, event: true, task: false };
+try { Object.assign(ccalFilters, JSON.parse(localStorage.getItem('ccalFilters') || '{}')); } catch (e) {}
 let ccalY, ccalM, ccalItems = [], ccalSel = null;
 const cpad = (n) => String(n).padStart(2, '0');
 const ctoday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
@@ -2868,21 +2882,26 @@ const ctoday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(
 async function loadCcal() {
   const first = `${ccalY}-${cpad(ccalM)}-01`;
   const last = `${ccalY}-${cpad(ccalM)}-${cpad(new Date(ccalY, ccalM, 0).getDate())}`;
+  const withTasks = !!ccalFilters.task;
+  if (withTasks) await supabaseClient.rpc('ensure_task_instances', { p_from: first, p_to: last });
   const [en, ev, tk] = await Promise.all([
     supabaseClient.from('calendar_entries').select('*').lte('entry_date', last).or(`end_date.gte.${first},and(end_date.is.null,entry_date.gte.${first})`).order('entry_date'),
     supabaseClient.from('events').select('id, name, event_date, location, is_active').gte('event_date', first).lte('event_date', last),
-    supabaseClient.from('task_templates').select('id, title, place, start_date, is_active').eq('recurrence', 'once').gte('start_date', first).lte('start_date', last),
+    withTasks
+      ? supabaseClient.from('task_instances').select('occurrence_date, template_id, task_templates ( id, title, place, is_active )').gte('occurrence_date', first).lte('occurrence_date', last).order('occurrence_date')
+      : Promise.resolve({ data: [] }),
   ]);
   const items = [];
   (en.data || []).forEach(e => items.push({ kind: 'entry', id: e.id, date: e.entry_date, end: e.end_date, title: e.title, time: e.time_text, place: e.place, notes: e.notes, raw: e }));
   (ev.data || []).forEach(e => items.push({ kind: 'event', id: e.id, date: e.event_date, title: e.name + (e.is_active === false ? '（已停用）' : ''), place: e.location }));
-  (tk.data || []).forEach(t => items.push({ kind: 'task', id: t.id, date: t.start_date, title: t.title + (t.is_active === false ? '（已停用）' : ''), place: t.place }));
+  (tk.data || []).filter(i => i.task_templates && i.task_templates.is_active !== false).forEach(i => items.push({ kind: 'task', id: i.template_id, date: i.occurrence_date, title: i.task_templates.title, place: i.task_templates.place }));
   items.sort((a, b) => a.date.localeCompare(b.date));
   ccalItems = items;
   renderCcal();
 }
 
-function ccalOn(ds) { return ccalItems.filter(it => it.date <= ds && ds <= (it.end || it.date)); }
+function ccalShown() { return ccalItems.filter(it => ccalFilters[it.kind]); }
+function ccalOn(ds) { return ccalShown().filter(it => it.date <= ds && ds <= (it.end || it.date)); }
 
 function renderCcal() {
   document.getElementById('ccal-title').textContent = ccalY + ' 年 ' + ccalM + ' 月';
@@ -2907,7 +2926,7 @@ function renderCcal() {
 
 function renderCcalList() {
   const el = document.getElementById('ccal-list');
-  const list = ccalSel ? ccalOn(ccalSel) : ccalItems;
+  const list = ccalSel ? ccalOn(ccalSel) : ccalShown();
   const head = ccalSel ? `<div style="font-weight:700; margin-bottom:6px;">${ccalSel}　<a href="#" id="ccal-show-all" style="font-weight:400; font-size:12.5px;">顯示整個月</a></div>` : '';
   if (list.length === 0) { el.innerHTML = head + '<div style="color:var(--ink-soft); font-size:13px;">沒有行程。</div>'; bindCcalList(); return; }
   el.innerHTML = head + list.map(it => {
@@ -2932,7 +2951,14 @@ function ccalShift(delta) {
   loadCcal();
 }
 
+['entry', 'event', 'task'].forEach(k => document.getElementById('ccal-f-' + k).addEventListener('change', (e) => {
+  ccalFilters[k] = e.target.checked;
+  try { localStorage.setItem('ccalFilters', JSON.stringify(ccalFilters)); } catch (err) {}
+  if (k === 'task' && e.target.checked) loadCcal(); else renderCcal();
+}));
+
 document.getElementById('manage-calendar-btn').addEventListener('click', () => {
+  ['entry', 'event', 'task'].forEach(k => { document.getElementById('ccal-f-' + k).checked = !!ccalFilters[k]; });
   const t = ctoday(); ccalY = +t.slice(0, 4); ccalM = +t.slice(5, 7); ccalSel = null;
   document.getElementById('cal-modal').classList.add('show');
   loadCcal();
