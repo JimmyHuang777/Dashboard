@@ -7,6 +7,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
   :root {
@@ -340,6 +341,31 @@
   .sub-person { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; background: var(--blue-bg); color: var(--blue); border-radius: 20px; padding: 2px 3px 2px 9px; }
   .sub-person.completed { background: var(--amber-bg); color: var(--amber); padding-right: 9px; }
   .sub-unassign-btn { border: none; background: rgba(0,0,0,.08); color: inherit; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; cursor: pointer; line-height: 1; padding: 0; }
+  .ccal-nav { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .ccal-nav .ttl { font-size:17px; font-weight:800; min-width:130px; text-align:center; }
+  .ccal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .ccal-dow { text-align:center; font-size:12px; color:var(--ink-soft); padding:3px 0; }
+  .ccal-day { min-height:78px; border:1px solid var(--line); border-radius:8px; padding:3px 4px; font-size:12px; cursor:pointer; background:var(--paper, #fff); overflow:hidden; }
+  .ccal-day.empty { border-color:transparent; background:transparent; cursor:default; }
+  .ccal-day.today { box-shadow: inset 0 0 0 2px #06C755; }
+  .ccal-day.selected { background:#E7F8EE; }
+  .ccal-day.sun .n { color:#DC2626; }
+  .ccal-day .n { font-weight:700; display:block; margin-bottom:2px; }
+  .ccal-chip { display:block; font-size:11px; line-height:1.3; border-radius:4px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; background:#06C755; }
+  .ccal-chip.event { background:#F97316; } .ccal-chip.task { background:#7C3AED; }
+  .ccal-item { border:1px solid var(--line); border-left:5px solid #06C755; border-radius:8px; padding:8px 10px; margin-bottom:6px; display:flex; gap:8px; align-items:flex-start; }
+  .ccal-item.event { border-left-color:#F97316; } .ccal-item.task { border-left-color:#7C3AED; }
+  .ccal-item .body { flex:1; min-width:0; }
+  .ccal-item .t { font-weight:700; font-size:14px; }
+  .ccal-item .s { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .ccal-kind { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; margin-right:6px; background:#E7F8EE; color:#067A37; }
+  .ccal-kind.event { background:#FFEDD5; color:#C2410C; } .ccal-kind.task { background:#EDE9FE; color:#6D28D9; }
+  .ci-table th, .ci-table td { padding:5px 8px; font-size:13px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  .ci-table tr.dup td, .ci-table tr.bad td { color:var(--ink-soft); background:#FAFAFA; }
+  .ci-tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
+  .ci-tag.ok { background:#DCFCE7; color:#15803D; } .ci-tag.dup { background:#E5E7EB; color:#4B5563; } .ci-tag.bad { background:#FEE2E2; color:#B91C1C; }
+  .ci-tab { padding:5px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-size:13px; }
+  .ci-tab.active { background:#E7F8EE; border-color:#06C755; font-weight:700; }
   .sb-slots-wrap { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--ink-soft); flex: none; }
   .sb-slots-wrap .sb-slots { width: 46px !important; flex: none !important; padding: 6px 4px; text-align: center; }
   .subtask-status-row .sub-title.done { text-decoration: line-through; color: var(--ink-soft); }
@@ -419,6 +445,7 @@
           <button type="button" class="dropdown-item" id="manage-groups-btn">群組 Groups</button>
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
           <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
+          <button type="button" class="dropdown-item" id="manage-calendar-btn">行事曆 Calendar</button>
           <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
           <button type="button" class="dropdown-item" id="manage-admin-roles-btn">管理員角色 Admin Roles</button>
         </div>
@@ -955,6 +982,102 @@
       <div style="max-height:60vh; overflow:auto;" id="profiles-list"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="profiles-close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="csv-extra-modal" style="z-index:300;">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2>匯出 CSV 前新增欄位</h2>
+      <p class="modal-sub" id="csv-extra-sub"></p>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+        <select id="csv-tpl-select" style="padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; min-width:180px;"><option value="">套用已存範本…</option></select>
+        <button type="button" class="btn-cancel" id="csv-tpl-save-btn">另存為範本</button>
+        <button type="button" class="btn-cancel" id="csv-tpl-del-btn" style="color:var(--red);">刪除範本</button>
+      </div>
+      <div id="csv-extra-cols"></div>
+      <button type="button" class="btn-cancel" id="csv-extra-add-btn" style="margin:6px 0 12px;">＋ 新增欄位</button>
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">預覽（藍底欄位可逐列修改；改過的格子不會再被「預設值」覆蓋）</div>
+      <div style="max-height:38vh; overflow:auto; border:1px solid var(--line); border-radius:8px;" id="csv-extra-preview"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="csv-extra-cancel-btn">取消</button>
+        <button type="button" class="btn-new-event" id="csv-extra-download-btn" style="background:var(--accent-dark);">下載 CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="cal-modal">
+    <div class="modal-box" style="max-width: 1040px; width: 96vw;">
+      <h2>行事曆 Calendar</h2>
+      <p class="modal-sub">綠色＝行事曆行程（可在此新增／編輯／匯入 Word）；橘色＝班程報名；紫色＝單次工作。班程與工作請到各自的管理頁編輯。</p>
+      <div class="ccal-nav">
+        <button type="button" class="btn-cancel" id="ccal-prev">‹</button>
+        <span class="ttl" id="ccal-title">—</span>
+        <button type="button" class="btn-cancel" id="ccal-next">›</button>
+        <button type="button" class="btn-cancel" id="ccal-today">今天</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-cancel" id="ccal-add-btn">＋ 新增行程</button>
+        <button type="button" class="btn-new-event" id="ccal-import-btn" style="background:var(--accent-dark);">匯入 Word</button>
+      </div>
+      <div class="ccal-grid" id="ccal-grid"></div>
+      <div id="ccal-list" style="margin-top:12px; max-height:26vh; overflow:auto;"></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="ccal-close-btn">關閉</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="cal-entry-modal" style="z-index:310;">
+    <div class="modal-box" style="max-width: 480px;">
+      <h2 id="cal-entry-title">新增行程</h2>
+      <input type="hidden" id="cal-entry-id">
+      <div class="modal-field"><label>開始日期</label><input type="date" id="cal-entry-date"></div>
+      <div class="modal-field"><label>結束日期（跨日才填）</label><input type="date" id="cal-entry-end"></div>
+      <div class="modal-field"><label>項目</label><input type="text" id="cal-entry-name"></div>
+      <div class="modal-field"><label>時間（選填）</label><input type="text" id="cal-entry-time" placeholder="例：09:00–12:00"></div>
+      <div class="modal-field"><label>地點（選填）</label><input type="text" id="cal-entry-place"></div>
+      <div class="modal-field"><label>備註（選填）</label><input type="text" id="cal-entry-notes"></div>
+      <div id="cal-entry-error" class="form-error" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="cal-entry-cancel">取消</button>
+        <button type="button" class="btn-new-event" id="cal-entry-save">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="cal-import-modal" style="z-index:320;">
+    <div class="modal-box" style="max-width: 1040px; width: 96vw;">
+      <h2>從 Word 匯入行事曆</h2>
+      <div id="ci-step1">
+        <p class="modal-sub">上傳含表格的 .docx 檔（表格需有日期與項目）。系統會自動猜欄位，下一步你可以修正。</p>
+        <div class="modal-field"><label>Word 檔案 (.docx)</label><input type="file" id="ci-file" accept=".docx"></div>
+        <div class="modal-field"><label>年份（西元或民國，例：2026 或 115）</label><input type="text" id="ci-year" style="max-width:160px;"></div>
+        <div class="modal-field">
+          <label>匯入後存為</label>
+          <label style="font-weight:400; display:block;"><input type="radio" name="ci-dest" value="entry" checked> C　行事曆行程（純顯示，成員在手機行事曆看得到）</label>
+          <label style="font-weight:400; display:block;"><input type="radio" name="ci-dest" value="task"> A　單次工作（出現在近期排程，可再加子項目、指派人員）</label>
+          <label style="font-weight:400; display:block;"><input type="radio" name="ci-dest" value="event"> B　班程（可報名；套用預設的個人資訊欄位）</label>
+        </div>
+        <div id="ci-error" class="form-error" style="display:none;"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="ci-cancel1">取消</button>
+          <button type="button" class="btn-new-event" id="ci-read-btn">讀取檔案</button>
+        </div>
+      </div>
+      <div id="ci-step2" style="display:none;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <span id="ci-tabs" style="display:flex; gap:6px; flex-wrap:wrap;"></span>
+          <label style="font-size:13px;"><input type="checkbox" id="ci-include" checked> 匯入此表格</label>
+          <span style="flex:1;"></span>
+          <label style="font-size:13px;">年份 <input type="text" id="ci-year2" style="width:70px; padding:4px 6px; border:1px solid var(--line); border-radius:6px;"></label>
+        </div>
+        <div id="ci-map" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; font-size:13px;"></div>
+        <div id="ci-summary" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;"></div>
+        <div style="max-height:42vh; overflow:auto; border:1px solid var(--line); border-radius:8px;" id="ci-preview"></div>
+        <div id="ci-result" style="font-size:13px; margin-top:8px;"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="ci-back">‹ 重選檔案</button>
+          <button type="button" class="btn-cancel" id="ci-close2">關閉</button>
+          <button type="button" class="btn-new-event" id="ci-do-btn" style="background:var(--accent-dark);">匯入</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1570,19 +1693,9 @@ function exportTaskViewCsv() {
   }
   const headers = ['姓名', '電話', '項目', '日期', '地點', '狀態', '時間'];
   const rows = allTaskViewRows.map(r => [r.name, r.phone, r.item, r.date, r.place, r.status, r.time ? formatDate(r.time) : '']);
-  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
-  const csvContent = csvLines.join('\r\n');
-
-  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   const safeName = (currentTaskTemplateName || 'task').replace(/[\\/:*?"<>|]/g, '_');
-  a.href = url;
-  a.download = `${safeName}_認領名單_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  openCsvExtraDialog({ key: 'task_view', title: currentTaskTemplateName || '認領名單', headers, rows,
+    filename: `${safeName}_認領名單_${new Date().toISOString().slice(0, 10)}.csv` });
 }
 
 // Keep the top-right task-select dropdown in sync with active task
@@ -1655,6 +1768,140 @@ function csvEscape(value) {
   return s;
 }
 
+/* ---------- CSV export with user-added extra columns ---------- */
+
+// Every CSV download goes through here: shows a dialog where extra columns
+// (a header + a default value, editable per row) can be appended before the
+// file is saved. Column names/defaults are remembered per export `key`.
+let csvExtraState = null;
+
+function csvExtraLoadSaved(key) {
+  try { return JSON.parse(localStorage.getItem('csvExtraCols:' + key) || '[]'); } catch (e) { return []; }
+}
+function csvExtraSave() {
+  try { localStorage.setItem('csvExtraCols:' + csvExtraState.key, JSON.stringify(csvExtraState.cols.map(c => ({ name: c.name, def: c.def })))); } catch (e) { /* storage unavailable */ }
+}
+
+function openCsvExtraDialog(opts) { // { key, title, headers, rows, filename }
+  if (!opts.rows || opts.rows.length === 0) { alert('目前沒有可匯出的資料。'); return; }
+  csvExtraState = {
+    key: opts.key, headers: opts.headers, rows: opts.rows, filename: opts.filename,
+    cols: csvExtraLoadSaved(opts.key).map(c => ({ name: c.name || '', def: c.def || '', vals: opts.rows.map(() => c.def || ''), dirty: new Set() })),
+  };
+  document.getElementById('csv-extra-sub').textContent = (opts.title || '') + '　共 ' + opts.rows.length + ' 筆。可在原有欄位後面加上自訂欄位（例：備註、簽到、車次），沒有要加就直接下載。';
+  renderCsvExtra();
+  document.getElementById('csv-extra-modal').classList.add('show');
+  loadCsvTemplates();
+}
+
+// ---- Saved templates of the extra columns (shared across admins, per export type) ----
+let csvTemplates = [];
+async function loadCsvTemplates() {
+  const { data, error } = await supabaseClient.from('csv_export_templates').select('id, name, columns').eq('export_key', csvExtraState.key).order('name');
+  csvTemplates = error ? [] : (data || []);
+  if (error) console.warn('csv templates:', error.message);
+  const sel = document.getElementById('csv-tpl-select');
+  sel.innerHTML = '<option value="">套用已存範本…</option>' + csvTemplates.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>').join('');
+}
+document.getElementById('csv-tpl-select').addEventListener('change', (e) => {
+  const t = csvTemplates.find(x => x.id === e.target.value);
+  if (!t) return;
+  const st = csvExtraState;
+  st.cols = (t.columns || []).map(c => ({ name: c.name || '', def: c.def || '', vals: st.rows.map(() => c.def || ''), dirty: new Set() }));
+  renderCsvExtra();
+});
+document.getElementById('csv-tpl-save-btn').addEventListener('click', async () => {
+  const cols = csvExtraState.cols.filter(c => c.name.trim()).map(c => ({ name: c.name.trim(), def: c.def || '' }));
+  if (cols.length === 0) { alert('請先新增至少一個有名稱的欄位。'); return; }
+  const sel = document.getElementById('csv-tpl-select');
+  const current = csvTemplates.find(x => x.id === sel.value);
+  const name = (prompt('範本名稱（同名會覆蓋）：', current ? current.name : '') || '').trim();
+  if (!name) return;
+  const { error } = await supabaseClient.from('csv_export_templates').upsert({ export_key: csvExtraState.key, name, columns: cols }, { onConflict: 'export_key,name' });
+  if (error) { alert('儲存失敗：' + error.message); return; }
+  await loadCsvTemplates();
+  const saved = csvTemplates.find(x => x.name === name);
+  if (saved) sel.value = saved.id;
+});
+document.getElementById('csv-tpl-del-btn').addEventListener('click', async () => {
+  const sel = document.getElementById('csv-tpl-select');
+  const t = csvTemplates.find(x => x.id === sel.value);
+  if (!t) { alert('請先在左側選一個範本。'); return; }
+  if (!confirm('確定要刪除範本「' + t.name + '」嗎？')) return;
+  const { error } = await supabaseClient.from('csv_export_templates').delete().eq('id', t.id);
+  if (error) { alert('刪除失敗：' + error.message); return; }
+  await loadCsvTemplates();
+});
+
+function renderCsvExtra() {
+  const st = csvExtraState;
+  document.getElementById('csv-extra-cols').innerHTML = st.cols.map((c, i) => `
+    <div style="display:flex; gap:8px; margin-bottom:6px; align-items:center;">
+      <input type="text" data-ce="name" data-i="${i}" placeholder="欄位名稱" value="${escapeHtml(c.name)}" style="flex:1; padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+      <input type="text" data-ce="def" data-i="${i}" placeholder="預設值（套用到每一列，可留空）" value="${escapeHtml(c.def)}" style="flex:1.4; padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
+      <button type="button" class="btn-cancel" data-ce="del" data-i="${i}">✕</button>
+    </div>`).join('');
+  renderCsvExtraPreview();
+}
+
+function renderCsvExtraPreview() {
+  const st = csvExtraState;
+  const th = st.headers.map(h => '<th>' + escapeHtml(h) + '</th>').join('') +
+    st.cols.map(c => '<th style="background:#DBEAFE;">' + escapeHtml(c.name || '（未命名）') + '</th>').join('');
+  const body = st.rows.map((r, ri) =>
+    '<tr>' + r.map(v => '<td>' + escapeHtml(v == null ? '' : v) + '</td>').join('') +
+    st.cols.map((c, ci) => '<td style="background:#EFF6FF; padding:2px;"><input type="text" data-ce="cell" data-r="' + ri + '" data-c="' + ci + '" value="' + escapeHtml(c.vals[ri]) + '" style="width:100%; min-width:90px; border:1px solid transparent; background:transparent; padding:4px 6px; font-size:13px;"></td>').join('') + '</tr>').join('');
+  document.getElementById('csv-extra-preview').innerHTML = '<table><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>';
+}
+
+document.getElementById('csv-extra-add-btn').addEventListener('click', () => {
+  const st = csvExtraState;
+  st.cols.push({ name: '', def: '', vals: st.rows.map(() => ''), dirty: new Set() });
+  renderCsvExtra();
+  const inputs = document.querySelectorAll('#csv-extra-cols [data-ce="name"]');
+  inputs[inputs.length - 1].focus();
+});
+document.getElementById('csv-extra-cols').addEventListener('input', (e) => {
+  const t = e.target, st = csvExtraState, i = parseInt(t.dataset.i, 10);
+  if (t.dataset.ce === 'name') { st.cols[i].name = t.value; renderCsvExtraHeaderOnly(); }
+  if (t.dataset.ce === 'def') {
+    const c = st.cols[i]; c.def = t.value;
+    c.vals = c.vals.map((v, ri) => c.dirty.has(ri) ? v : t.value);
+    // update visible cells in place so typing focus isn't lost
+    document.querySelectorAll('#csv-extra-preview input[data-c="' + i + '"]').forEach(inp => { if (!c.dirty.has(parseInt(inp.dataset.r, 10))) inp.value = t.value; });
+  }
+});
+document.getElementById('csv-extra-cols').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ce="del"]'); if (!b) return;
+  csvExtraState.cols.splice(parseInt(b.dataset.i, 10), 1);
+  renderCsvExtra();
+});
+function renderCsvExtraHeaderOnly() {
+  const ths = document.querySelectorAll('#csv-extra-preview thead th');
+  csvExtraState.cols.forEach((c, i) => { const th = ths[csvExtraState.headers.length + i]; if (th) th.textContent = c.name || '（未命名）'; });
+}
+document.getElementById('csv-extra-preview').addEventListener('input', (e) => {
+  const t = e.target; if (t.dataset.ce !== 'cell') return;
+  const c = csvExtraState.cols[parseInt(t.dataset.c, 10)], ri = parseInt(t.dataset.r, 10);
+  c.vals[ri] = t.value; c.dirty.add(ri);
+});
+document.getElementById('csv-extra-cancel-btn').addEventListener('click', () => document.getElementById('csv-extra-modal').classList.remove('show'));
+document.getElementById('csv-extra-download-btn').addEventListener('click', () => {
+  const st = csvExtraState;
+  const cols = st.cols.filter(c => c.name.trim());
+  const headers = [...st.headers, ...cols.map(c => c.name.trim())];
+  const rows = st.rows.map((r, ri) => [...r, ...cols.map(c => c.vals[ri])]);
+  csvExtraSave();
+  const lines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = st.filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(a.href);
+  document.getElementById('csv-extra-modal').classList.remove('show');
+});
+
 function exportCsv() {
   if (allRegistrants.length === 0) {
     alert('目前沒有可匯出的報名資料。');
@@ -1679,21 +1926,9 @@ function exportCsv() {
     ];
   });
 
-  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
-  const csvContent = csvLines.join('\r\n');
-
-  // Prepend a UTF-8 BOM so Excel correctly detects the encoding and
-  // displays Chinese characters properly instead of garbled text.
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
   const safeEventName = (currentEventName || 'event').replace(/[\\/:*?"<>|]/g, '_');
-  a.href = url;
-  a.download = `${safeEventName}_報名名單_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  openCsvExtraDialog({ key: 'registrants', title: currentEventName || '報名名單', headers, rows,
+    filename: `${safeEventName}_報名名單_${new Date().toISOString().slice(0, 10)}.csv` });
 }
 
 /* ---------- Registrants ---------- */
@@ -2426,14 +2661,9 @@ function renderProfileRows() {
 function exportProfilesCsv() {
   const rows = filteredProfileRows();
   const headers = ['LINE 名稱', '類別', '與本人關係', '姓名', '公堂組別', '性別', '天職', '佛堂', '電話'];
-  const lines = [headers, ...rows.map(r => [r.owner, r.kind === 'self' ? '本人' : '親友', r.relationship, r.full_name, r.altar_name, r.gender, r.duty, r.shrine, r.phone])]
-    .map(row => row.map(csvEscape).join(','));
-  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '成員資料_' + new Date().toISOString().slice(0, 10) + '.csv';
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(a.href);
+  openCsvExtraDialog({ key: 'profiles', title: '成員資料', headers,
+    rows: rows.map(r => [r.owner, r.kind === 'self' ? '本人' : '親友', r.relationship, r.full_name, r.altar_name, r.gender, r.duty, r.shrine, r.phone]),
+    filename: '成員資料_' + new Date().toISOString().slice(0, 10) + '.csv' });
 }
 
 document.getElementById('manage-profiles-btn').addEventListener('click', () => {
@@ -2444,6 +2674,515 @@ document.getElementById('profiles-close-btn').addEventListener('click', () => do
 document.getElementById('profiles-search').addEventListener('input', renderProfileRows);
 document.getElementById('profiles-filter-kind').addEventListener('change', renderProfileRows);
 document.getElementById('profiles-export-btn').addEventListener('click', exportProfilesCsv);
+
+/* ---------- Word calendar import: parsing core (pure functions) ---------- */
+
+function ciNormalize(t) {
+  return String(t == null ? '' : t)
+    .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[／]/g, '/').replace(/[－—–﹣]/g, '-').replace(/[～〜]/g, '~').replace(/[．。]/g, '.')
+    .replace(/ /g, ' ');
+}
+
+function ciValidDate(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+function ciFmt(y, m, d) { return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+function ciYear(y) { y = parseInt(y, 10); return y < 1000 ? y + 1911 : y; } // 民國 → 西元
+
+// Returns { start:'YYYY-MM-DD', end:'YYYY-MM-DD'|null } or null.
+// year = the year the admin typed (西元 or 民國); ctxMonth = month taken from a
+// nearby "10月" heading when the cell only holds a day number.
+function parseDateCell(text, year, ctxMonth) {
+  const t = ciNormalize(text).replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  const baseYear = ciYear(year);
+  const RANGE = /^\s*(?:~|-|至|到)\s*(?:(\d{1,2})\s*[\/.月]\s*)?(\d{1,2})/;
+  let sy = baseYear, sm, sd, rest;
+
+  let m = t.match(/(?<!\d)(\d{3,4})\s*[\/.\-年]\s*(\d{1,2})\s*[\/.\-月]\s*(\d{1,2})\s*[日號]?/);
+  if (m) { sy = ciYear(m[1]); sm = +m[2]; sd = +m[3]; rest = t.slice(m.index + m[0].length); }
+  else {
+    m = t.match(/(?<!\d)(\d{1,2})\s*[\/.月]\s*(\d{1,2})\s*[日號]?/);
+    if (m) { sm = +m[1]; sd = +m[2]; rest = t.slice(m.index + m[0].length); }
+    else if (ctxMonth) {
+      m = t.match(/^\s*(?:[（(]\s*(?:週|周|星期)?[日一二三四五六天]\s*[）)])?\s*(\d{1,2})\s*[日號]?\s*(?:[（(]\s*(?:週|周|星期)?[日一二三四五六天]\s*[）)])?\s*(?:(?:~|-|至|到)\s*(\d{1,2})\s*[日號]?)?\s*(?:[（(]\s*(?:週|周|星期)?[日一二三四五六天]\s*[）)])?\s*$/);
+      if (!m) return null;
+      sm = ctxMonth; sd = +m[1];
+      if (!ciValidDate(sy, sm, sd)) return null;
+      let end = null;
+      if (m[2]) { const ed = +m[2]; if (ed > sd && ciValidDate(sy, sm, ed)) end = ciFmt(sy, sm, ed); }
+      return { start: ciFmt(sy, sm, sd), end };
+    } else return null;
+  }
+  if (!ciValidDate(sy, sm, sd)) return null;
+  const start = ciFmt(sy, sm, sd);
+  let end = null;
+  const r = rest && rest.match(RANGE);
+  if (r) {
+    const em = r[1] ? +r[1] : sm, ed = +r[2];
+    let ey = sy;
+    if (em < sm) ey = sy + 1; // e.g. 12/30 – 1/2
+    if (ciValidDate(ey, em, ed)) { const e = ciFmt(ey, em, ed); if (e > start) end = e; }
+  }
+  return { start, end };
+}
+
+// ---- .docx → tables ----
+// Reads word/document.xml with the given DOMParser constructor and returns
+// [{ context, rows: [[cellText,...],...] }]. Horizontal merges are repeated
+// across the spanned columns; vertical merges copy the text from above.
+function docxTablesFromXml(xml, ParserCtor) {
+  const doc = new ParserCtor().parseFromString(xml, 'application/xml');
+  const body = doc.getElementsByTagName('w:body')[0];
+  if (!body) return [];
+  const kids = Array.from(body.childNodes).filter(n => n.nodeType === 1);
+  const paraText = (p) => Array.from(p.getElementsByTagName('w:t')).map(x => x.textContent).join('').trim();
+  const direct = (el, name) => Array.from(el.childNodes).filter(n => n.nodeType === 1 && n.nodeName === name);
+  const cellText = (tc) => direct(tc, 'w:p').map(paraText).filter(Boolean).join(' / ');
+
+  const tables = [];
+  let recent = [];
+  kids.forEach(node => {
+    if (node.nodeName === 'w:p') { const s = paraText(node); if (s) recent.push(s); return; }
+    if (node.nodeName !== 'w:tbl') return;
+    const grid = [];
+    direct(node, 'w:tr').forEach(tr => {
+      const row = [];
+      direct(tr, 'w:tc').forEach(tc => {
+        const pr = direct(tc, 'w:tcPr')[0];
+        const span = pr && direct(pr, 'w:gridSpan')[0] ? parseInt(direct(pr, 'w:gridSpan')[0].getAttribute('w:val'), 10) || 1 : 1;
+        const vm = pr ? direct(pr, 'w:vMerge')[0] : null;
+        const vcont = !!(vm && vm.getAttribute('w:val') !== 'restart');
+        let text = cellText(tc);
+        const col = row.length;
+        if (vcont && grid.length) text = (grid[grid.length - 1][col] || '');
+        for (let i = 0; i < span; i++) row.push(text);
+      });
+      grid.push(row);
+    });
+    const width = Math.max(0, ...grid.map(r => r.length));
+    grid.forEach(r => { while (r.length < width) r.push(''); });
+    tables.push({ context: recent.slice(-3).join(' '), rows: grid });
+    recent = [];
+  });
+  return tables.filter(t => t.rows.length > 0 && t.rows[0].length > 0);
+}
+
+const CI_HEAD = {
+  date:  /^(日\s*期|日|Date)/i,
+  item:  /(項\s*目|活\s*動|內\s*容|事\s*項|行\s*程|名\s*稱|課\s*程|班\s*程|主\s*題)/,
+  time:  /(時\s*間|Time)/i,
+  place: /(地\s*點|場\s*地|地\s*址)/,
+  notes: /(備\s*註|說\s*明|其\s*他)/,
+};
+
+// A table row whose cells are all the same text and look like "10月" / "115年10月".
+function ciMonthTitle(row) {
+  const cells = row.map(c => ciNormalize(c).trim()).filter(Boolean);
+  if (cells.length === 0 || new Set(cells).size !== 1) return null;
+  const m = cells[0].match(/^(?:\d{2,4}\s*年\s*)?(\d{1,2})\s*月(?!\s*\d)/);
+  return m ? +m[1] : null;
+}
+
+// Decide header row + which column means what.
+function guessTable(table, year) {
+  const rows = table.rows;
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(3, rows.length); i++) {
+    const hits = rows[i].filter(c => Object.values(CI_HEAD).some(re => re.test(ciNormalize(c).trim()) && !/\d/.test(c))).length;
+    if (hits >= 2) { headerIdx = i; break; }
+  }
+  const width = rows[0].length;
+  const header = headerIdx >= 0 ? rows[headerIdx] : null;
+  const map = { date: -1, item: -1, time: -1, place: -1, notes: -1 };
+  if (header) {
+    Object.keys(CI_HEAD).forEach(k => {
+      const i = header.findIndex((c, ci) => CI_HEAD[k].test(ciNormalize(c).trim()) && !Object.values(map).includes(ci));
+      if (i >= 0) map[k] = i;
+    });
+  }
+  const dataRows = rows.slice(headerIdx + 1);
+  let ctxMonth = (table.context.match(/(\d{1,2})\s*月/) || [])[1];
+  ctxMonth = ctxMonth ? +ctxMonth : null;
+  if (map.date < 0) {
+    let best = -1, bestRatio = 0;
+    for (let c = 0; c < width; c++) {
+      const vals = dataRows.map(r => r[c]).filter(v => v && v.trim());
+      if (vals.length === 0) continue;
+      const ratio = vals.filter(v => parseDateCell(v, year, ctxMonth || 1)).length / vals.length;
+      if (ratio > bestRatio) { bestRatio = ratio; best = c; }
+    }
+    if (bestRatio >= 0.5) map.date = best;
+  }
+  if (map.item < 0) {
+    let best = -1, bestLen = 0;
+    for (let c = 0; c < width; c++) {
+      if (Object.values(map).includes(c)) continue;
+      const vals = dataRows.map(r => (r[c] || '').trim()).filter(Boolean);
+      if (vals.length === 0) continue;
+      const avg = vals.reduce((s, v) => s + v.length, 0) / vals.length;
+      if (avg > bestLen) { bestLen = avg; best = c; }
+    }
+    map.item = best;
+  }
+  return { headerIdx, map, ctxMonth, labels: Array.from({ length: width }, (_, i) => (header && header[i] ? header[i] : '') ) };
+}
+
+// Turn one table + mapping into import rows.
+// status: 'ok' | 'baddate'  (duplicate marking happens later against the DB)
+function buildImportRows(table, guess, map, year) {
+  const rows = table.rows.slice(guess.headerIdx + 1);
+  let month = guess.ctxMonth;
+  let prev = null;
+  const out = [];
+  rows.forEach(r => {
+    const mt = ciMonthTitle(r);
+    if (mt) { month = mt; return; }
+    const cell = (k) => (map[k] >= 0 ? (r[map[k]] || '').trim() : '');
+    const title = cell('item');
+    const dateText = cell('date');
+    if (!title && !dateText) return;
+    let d = dateText ? parseDateCell(dateText, year, month) : null;
+    let carried = false;
+    if (!d && !dateText && prev) { d = prev; carried = true; }   // blank date → same day as the row above
+    if (d && !carried) prev = d;
+    if (!title) return;
+    out.push({
+      date: d ? d.start : null, end: d ? d.end : null, dateText, carried,
+      title, time: cell('time'), place: cell('place'), notes: cell('notes'),
+      status: d ? 'ok' : 'baddate',
+    });
+  });
+  return out;
+}
+
+/* ---------- 行事曆 Calendar (Dashboard) ---------- */
+
+const CAL_KIND = { entry: '行事曆', event: '班程報名', task: '單次工作' };
+let ccalY, ccalM, ccalItems = [], ccalSel = null;
+const cpad = (n) => String(n).padStart(2, '0');
+const ctoday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+
+async function loadCcal() {
+  const first = `${ccalY}-${cpad(ccalM)}-01`;
+  const last = `${ccalY}-${cpad(ccalM)}-${cpad(new Date(ccalY, ccalM, 0).getDate())}`;
+  const [en, ev, tk] = await Promise.all([
+    supabaseClient.from('calendar_entries').select('*').lte('entry_date', last).or(`end_date.gte.${first},and(end_date.is.null,entry_date.gte.${first})`).order('entry_date'),
+    supabaseClient.from('events').select('id, name, event_date, location, is_active').gte('event_date', first).lte('event_date', last),
+    supabaseClient.from('task_templates').select('id, title, place, start_date, is_active').eq('recurrence', 'once').gte('start_date', first).lte('start_date', last),
+  ]);
+  const items = [];
+  (en.data || []).forEach(e => items.push({ kind: 'entry', id: e.id, date: e.entry_date, end: e.end_date, title: e.title, time: e.time_text, place: e.place, notes: e.notes, raw: e }));
+  (ev.data || []).forEach(e => items.push({ kind: 'event', id: e.id, date: e.event_date, title: e.name + (e.is_active === false ? '（已停用）' : ''), place: e.location }));
+  (tk.data || []).forEach(t => items.push({ kind: 'task', id: t.id, date: t.start_date, title: t.title + (t.is_active === false ? '（已停用）' : ''), place: t.place }));
+  items.sort((a, b) => a.date.localeCompare(b.date));
+  ccalItems = items;
+  renderCcal();
+}
+
+function ccalOn(ds) { return ccalItems.filter(it => it.date <= ds && ds <= (it.end || it.date)); }
+
+function renderCcal() {
+  document.getElementById('ccal-title').textContent = ccalY + ' 年 ' + ccalM + ' 月';
+  const firstDow = new Date(ccalY, ccalM - 1, 1).getDay();
+  const days = new Date(ccalY, ccalM, 0).getDate();
+  let html = ['日','一','二','三','四','五','六'].map(d => '<div class="ccal-dow">' + d + '</div>').join('');
+  for (let i = 0; i < firstDow; i++) html += '<div class="ccal-day empty"></div>';
+  for (let d = 1; d <= days; d++) {
+    const ds = `${ccalY}-${cpad(ccalM)}-${cpad(d)}`;
+    const list = ccalOn(ds);
+    const cls = ['ccal-day'];
+    if ((firstDow + d - 1) % 7 === 0) cls.push('sun');
+    if (ds === ctoday()) cls.push('today');
+    if (ds === ccalSel) cls.push('selected');
+    html += `<div class="${cls.join(' ')}" data-date="${ds}"><span class="n">${d}</span>` +
+      list.slice(0, 3).map(it => `<span class="ccal-chip ${it.kind}">${escapeHtml(it.title)}</span>`).join('') +
+      (list.length > 3 ? `<span style="font-size:11px; color:var(--ink-soft);">+${list.length - 3}</span>` : '') + '</div>';
+  }
+  document.getElementById('ccal-grid').innerHTML = html;
+  renderCcalList();
+}
+
+function renderCcalList() {
+  const el = document.getElementById('ccal-list');
+  const list = ccalSel ? ccalOn(ccalSel) : ccalItems;
+  const head = ccalSel ? `<div style="font-weight:700; margin-bottom:6px;">${ccalSel}　<a href="#" id="ccal-show-all" style="font-weight:400; font-size:12.5px;">顯示整個月</a></div>` : '';
+  if (list.length === 0) { el.innerHTML = head + '<div style="color:var(--ink-soft); font-size:13px;">沒有行程。</div>'; bindCcalList(); return; }
+  el.innerHTML = head + list.map(it => {
+    const range = it.end && it.end !== it.date ? `${it.date} – ${it.end}` : it.date;
+    const sub = [range, it.time, it.place && ('📍 ' + it.place), it.notes].filter(Boolean).map(escapeHtml).join('　');
+    const btns = it.kind === 'entry' ? `<button type="button" class="btn-text" data-ccal-edit="${it.id}">編輯</button><button type="button" class="btn-text" style="color:var(--red);" data-ccal-del="${it.id}">刪除</button>` : '';
+    return `<div class="ccal-item ${it.kind}"><div class="body"><div class="t"><span class="ccal-kind ${it.kind}">${CAL_KIND[it.kind]}</span>${escapeHtml(it.title)}</div><div class="s">${sub}</div></div>${btns}</div>`;
+  }).join('');
+  bindCcalList();
+}
+
+function bindCcalList() {
+  const all = document.getElementById('ccal-show-all');
+  if (all) all.addEventListener('click', (e) => { e.preventDefault(); ccalSel = null; renderCcal(); });
+}
+
+function ccalShift(delta) {
+  ccalM += delta;
+  if (ccalM < 1) { ccalM = 12; ccalY--; }
+  if (ccalM > 12) { ccalM = 1; ccalY++; }
+  ccalSel = null;
+  loadCcal();
+}
+
+document.getElementById('manage-calendar-btn').addEventListener('click', () => {
+  const t = ctoday(); ccalY = +t.slice(0, 4); ccalM = +t.slice(5, 7); ccalSel = null;
+  document.getElementById('cal-modal').classList.add('show');
+  loadCcal();
+});
+document.getElementById('ccal-close-btn').addEventListener('click', () => document.getElementById('cal-modal').classList.remove('show'));
+document.getElementById('ccal-prev').addEventListener('click', () => ccalShift(-1));
+document.getElementById('ccal-next').addEventListener('click', () => ccalShift(1));
+document.getElementById('ccal-today').addEventListener('click', () => { const t = ctoday(); ccalY = +t.slice(0, 4); ccalM = +t.slice(5, 7); ccalSel = t; loadCcal(); });
+document.getElementById('ccal-grid').addEventListener('click', (e) => {
+  const c = e.target.closest('.ccal-day[data-date]'); if (!c) return;
+  ccalSel = c.dataset.date; renderCcal();
+});
+document.getElementById('ccal-list').addEventListener('click', async (e) => {
+  const ed = e.target.closest('[data-ccal-edit]'), del = e.target.closest('[data-ccal-del]');
+  if (ed) openCalEntry(ccalItems.find(i => i.kind === 'entry' && i.id === ed.dataset.ccalEdit));
+  if (del) {
+    const it = ccalItems.find(i => i.kind === 'entry' && i.id === del.dataset.ccalDel);
+    if (!it || !confirm('確定要刪除「' + it.title + '」嗎？')) return;
+    const { error } = await supabaseClient.from('calendar_entries').delete().eq('id', it.id);
+    if (error) { alert('刪除失敗：' + error.message); return; }
+    loadCcal();
+  }
+});
+
+function openCalEntry(it) {
+  const e = it ? it.raw : null;
+  document.getElementById('cal-entry-title').textContent = e ? '編輯行程' : '新增行程';
+  document.getElementById('cal-entry-id').value = e ? e.id : '';
+  document.getElementById('cal-entry-date').value = e ? e.entry_date : (ccalSel || ctoday());
+  document.getElementById('cal-entry-end').value = e ? (e.end_date || '') : '';
+  document.getElementById('cal-entry-name').value = e ? e.title : '';
+  document.getElementById('cal-entry-time').value = e ? (e.time_text || '') : '';
+  document.getElementById('cal-entry-place').value = e ? (e.place || '') : '';
+  document.getElementById('cal-entry-notes').value = e ? (e.notes || '') : '';
+  document.getElementById('cal-entry-error').style.display = 'none';
+  document.getElementById('cal-entry-modal').classList.add('show');
+}
+document.getElementById('ccal-add-btn').addEventListener('click', () => openCalEntry(null));
+document.getElementById('cal-entry-cancel').addEventListener('click', () => document.getElementById('cal-entry-modal').classList.remove('show'));
+document.getElementById('cal-entry-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('cal-entry-error');
+  const row = {
+    entry_date: document.getElementById('cal-entry-date').value,
+    end_date: document.getElementById('cal-entry-end').value || null,
+    title: document.getElementById('cal-entry-name').value.trim(),
+    time_text: document.getElementById('cal-entry-time').value.trim() || null,
+    place: document.getElementById('cal-entry-place').value.trim() || null,
+    notes: document.getElementById('cal-entry-notes').value.trim() || null,
+  };
+  if (!row.entry_date || !row.title) { errEl.textContent = '請填寫日期與項目。'; errEl.style.display = 'block'; return; }
+  if (row.end_date && row.end_date < row.entry_date) { errEl.textContent = '結束日期不能早於開始日期。'; errEl.style.display = 'block'; return; }
+  const id = document.getElementById('cal-entry-id').value;
+  const { error } = id ? await supabaseClient.from('calendar_entries').update(row).eq('id', id) : await supabaseClient.from('calendar_entries').insert(row);
+  if (error) { errEl.textContent = error.message.includes('duplicate') ? '同一天已經有同名的行程。' : '儲存失敗：' + error.message; errEl.style.display = 'block'; return; }
+  document.getElementById('cal-entry-modal').classList.remove('show');
+  loadCcal();
+});
+
+/* ---------- Word import wizard ---------- */
+
+let ciState = null; // { fileName, year, dest, tabs:[{table,guess,map,include}], cur, rowsByTab, dup }
+
+document.getElementById('ccal-import-btn').addEventListener('click', () => {
+  document.getElementById('ci-step1').style.display = 'block';
+  document.getElementById('ci-step2').style.display = 'none';
+  document.getElementById('ci-error').style.display = 'none';
+  document.getElementById('ci-file').value = '';
+  document.getElementById('ci-year').value = ciState && ciState.year ? ciState.year : String(new Date().getFullYear());
+  document.getElementById('cal-import-modal').classList.add('show');
+});
+['ci-cancel1', 'ci-close2'].forEach(id => document.getElementById(id).addEventListener('click', () => document.getElementById('cal-import-modal').classList.remove('show')));
+document.getElementById('ci-back').addEventListener('click', () => { document.getElementById('ci-step1').style.display = 'block'; document.getElementById('ci-step2').style.display = 'none'; });
+
+document.getElementById('ci-read-btn').addEventListener('click', async () => {
+  const errEl = document.getElementById('ci-error');
+  errEl.style.display = 'none';
+  const file = document.getElementById('ci-file').files[0];
+  const yearTxt = document.getElementById('ci-year').value.trim();
+  if (!file) { errEl.textContent = '請選擇 .docx 檔案。'; errEl.style.display = 'block'; return; }
+  if (!/^\d{3,4}$/.test(yearTxt)) { errEl.textContent = '請填寫年份（例：2026 或 115）。'; errEl.style.display = 'block'; return; }
+  if (typeof JSZip === 'undefined') { errEl.textContent = '無法載入解壓縮元件，請檢查網路後重新整理頁面。'; errEl.style.display = 'block'; return; }
+  try {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const docFile = zip.file('word/document.xml');
+    if (!docFile) throw new Error('這不是有效的 .docx 檔（舊版 .doc 請先另存為 .docx）。');
+    const tables = docxTablesFromXml(await docFile.async('string'), DOMParser);
+    if (tables.length === 0) throw new Error('檔案裡沒有找到表格。');
+    const year = ciYear(yearTxt);
+    ciState = {
+      fileName: file.name, year: yearTxt,
+      dest: document.querySelector('input[name="ci-dest"]:checked').value,
+      tabs: tables.map(t => { const g = guessTable(t, year); return { table: t, guess: g, map: { ...g.map }, include: true }; }),
+      cur: 0, dup: new Set(),
+    };
+    document.getElementById('ci-year2').value = yearTxt;
+    document.getElementById('ci-result').textContent = '';
+    document.getElementById('ci-step1').style.display = 'none';
+    document.getElementById('ci-step2').style.display = 'block';
+    await ciRefreshDup();
+    ciRender();
+  } catch (err) {
+    errEl.textContent = '讀取失敗：' + err.message; errEl.style.display = 'block';
+  }
+});
+
+const ciKey = (date, title) => date + '|' + String(title).replace(/\s+/g, '').toLowerCase();
+function ciRows(tab) { return buildImportRows(tab.table, tab.guess, tab.map, ciYear(ciState.year)); }
+
+// Which (date,title) already exist in the chosen destination.
+async function ciRefreshDup() {
+  const dates = ciState.tabs.flatMap(t => ciRows(t)).map(r => r.date).filter(Boolean).sort();
+  ciState.dup = new Set();
+  if (dates.length === 0) return;
+  const lo = dates[0], hi = dates[dates.length - 1];
+  let res;
+  if (ciState.dest === 'entry') {
+    res = await supabaseClient.from('calendar_entries').select('entry_date, title').gte('entry_date', lo).lte('entry_date', hi);
+    (res.data || []).forEach(r => ciState.dup.add(ciKey(r.entry_date, r.title)));
+  } else if (ciState.dest === 'task') {
+    res = await supabaseClient.from('task_templates').select('start_date, title').eq('recurrence', 'once').gte('start_date', lo).lte('start_date', hi);
+    (res.data || []).forEach(r => ciState.dup.add(ciKey(r.start_date, r.title)));
+  } else {
+    res = await supabaseClient.from('events').select('event_date, name').gte('event_date', lo).lte('event_date', hi);
+    (res.data || []).forEach(r => ciState.dup.add(ciKey(r.event_date, r.name)));
+  }
+}
+
+const CI_FIELDS = [['date', '日期'], ['item', '項目'], ['time', '時間'], ['place', '地點'], ['notes', '備註']];
+
+function ciRender() {
+  const st = ciState, tab = st.tabs[st.cur];
+  document.getElementById('ci-tabs').innerHTML = st.tabs.map((t, i) =>
+    `<button type="button" class="ci-tab ${i === st.cur ? 'active' : ''}" data-ci-tab="${i}">表格 ${i + 1}（${Math.max(0, t.table.rows.length - (t.guess.headerIdx + 1))} 列）</button>`).join('');
+  document.getElementById('ci-include').checked = tab.include;
+  const width = tab.table.rows[0].length;
+  const sample = (c) => { const h = tab.guess.labels[c] || (tab.table.rows[tab.guess.headerIdx + 1] || [])[c] || ''; return '第' + (c + 1) + '欄' + (h ? '：' + h.slice(0, 10) : ''); };
+  document.getElementById('ci-map').innerHTML = CI_FIELDS.map(([k, label]) =>
+    `<label>${label} <select data-ci-map="${k}" style="padding:4px 6px; border:1px solid var(--line); border-radius:6px;"><option value="-1">不使用</option>` +
+    Array.from({ length: width }, (_, c) => `<option value="${c}" ${tab.map[k] === c ? 'selected' : ''}>${escapeHtml(sample(c))}</option>`).join('') + '</select></label>').join('');
+
+  const rows = ciRows(tab);
+  tab.rowsCache = rows;
+  if (!tab.excluded) tab.excluded = new Set();
+  rows.forEach((r, i) => { r.dup = !!(r.date && st.dup.has(ciKey(r.date, r.title))); r.checked = r.status === 'ok' && !r.dup && !tab.excluded.has(i); });
+
+  const okN = rows.filter(r => r.status === 'ok' && !r.dup).length;
+  document.getElementById('ci-summary').textContent = `共 ${rows.length} 列：可新增 ${okN}、已存在 ${rows.filter(r => r.dup).length}、日期無法判讀 ${rows.filter(r => r.status === 'baddate').length}。` +
+    (st.dest !== 'entry' ? '　（跨日項目在此類型只會用開始日期）' : '');
+  document.getElementById('ci-preview').innerHTML = '<table class="ci-table" style="width:100%; border-collapse:collapse;"><thead><tr><th></th><th>日期</th><th>項目</th><th>時間</th><th>地點</th><th>備註</th><th>狀態</th></tr></thead><tbody>' +
+    rows.map((r, i) => {
+      const cls = r.dup ? 'dup' : (r.status === 'baddate' ? 'bad' : '');
+      const tag = r.dup ? '<span class="ci-tag dup">已存在・略過</span>' : (r.status === 'baddate' ? `<span class="ci-tag bad">日期無法判讀${r.dateText ? '：' + escapeHtml(r.dateText) : ''}</span>` : '<span class="ci-tag ok">新增</span>');
+      return `<tr class="${cls}"><td><input type="checkbox" data-ci-row="${i}" ${r.checked ? 'checked' : ''} ${r.dup || r.status === 'baddate' ? 'disabled' : ''}></td>` +
+        `<td>${r.date ? r.date + (r.end ? ' → ' + r.end : '') : '—'}${r.carried ? ' <small>(同上)</small>' : ''}</td><td>${escapeHtml(r.title)}</td><td>${escapeHtml(r.time)}</td><td>${escapeHtml(r.place)}</td><td>${escapeHtml(r.notes)}</td><td>${tag}</td></tr>`;
+    }).join('') + '</tbody></table>';
+  ciUpdateButton();
+}
+
+function ciCollect() {
+  const out = [];
+  ciState.tabs.forEach(tab => {
+    if (!tab.include) return;
+    ciRows(tab).forEach((r, i) => {
+      const dup = r.date && ciState.dup.has(ciKey(r.date, r.title));
+      if (r.status === 'ok' && !dup && !(tab.excluded && tab.excluded.has(i))) out.push(r);
+    });
+  });
+  return out;
+}
+function ciUpdateButton() {
+  const n = ciCollect().length;
+  const b = document.getElementById('ci-do-btn');
+  b.textContent = '匯入 ' + n + ' 筆';
+  b.disabled = n === 0;
+}
+
+document.getElementById('ci-tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ci-tab]'); if (!b) return;
+  ciState.cur = parseInt(b.dataset.ciTab, 10); ciRender();
+});
+document.getElementById('ci-include').addEventListener('change', (e) => { ciState.tabs[ciState.cur].include = e.target.checked; ciUpdateButton(); });
+document.getElementById('ci-map').addEventListener('change', async (e) => {
+  const sel = e.target.closest('[data-ci-map]'); if (!sel) return;
+  const tab = ciState.tabs[ciState.cur];
+  tab.map[sel.dataset.ciMap] = parseInt(sel.value, 10);
+  tab.excluded = new Set();
+  await ciRefreshDup(); ciRender();
+});
+document.getElementById('ci-preview').addEventListener('change', (e) => {
+  const cb = e.target.closest('[data-ci-row]'); if (!cb) return;
+  const tab = ciState.tabs[ciState.cur];
+  if (!tab.excluded) tab.excluded = new Set();
+  const i = parseInt(cb.dataset.ciRow, 10);
+  if (cb.checked) tab.excluded.delete(i); else tab.excluded.add(i);
+  ciUpdateButton();
+});
+document.getElementById('ci-year2').addEventListener('change', async (e) => {
+  const v = e.target.value.trim();
+  if (!/^\d{3,4}$/.test(v)) { alert('請填寫年份（例：2026 或 115）。'); e.target.value = ciState.year; return; }
+  ciState.year = v; ciState.tabs.forEach(t => { t.excluded = new Set(); });
+  await ciRefreshDup(); ciRender();
+});
+
+document.getElementById('ci-do-btn').addEventListener('click', async () => {
+  const rows = ciCollect();
+  if (rows.length === 0) return;
+  const btn = document.getElementById('ci-do-btn');
+  btn.disabled = true; btn.textContent = '匯入中…';
+  const resEl = document.getElementById('ci-result');
+  const joinDesc = (r) => [r.time, r.notes].filter(Boolean).join('　') || null;
+  try {
+    const chunks = (arr) => { const o = []; for (let i = 0; i < arr.length; i += 100) o.push(arr.slice(i, i + 100)); return o; };
+    if (ciState.dest === 'entry') {
+      for (const part of chunks(rows)) {
+        const { error } = await supabaseClient.from('calendar_entries').upsert(
+          part.map(r => ({ entry_date: r.date, end_date: r.end, title: r.title, time_text: r.time || null, place: r.place || null, notes: r.notes || null, source: ciState.fileName })),
+          { onConflict: 'entry_date,title', ignoreDuplicates: true });
+        if (error) throw error;
+      }
+    } else if (ciState.dest === 'task') {
+      for (const part of chunks(rows)) {
+        const { error } = await supabaseClient.from('task_templates').insert(
+          part.map(r => ({ title: r.title, description: joinDesc(r), recurrence: 'once', recurrence_detail: {}, slots_per_instance: 1, place: r.place || null, start_date: r.date, end_date: r.date })));
+        if (error) throw error;
+      }
+    } else {
+      const schema = DEFAULT_PERSONAL_FIELDS.map((f, i) => {
+        const o = { id: f.label.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '_').replace(/^_+|_+$/g, '') || ('field_' + i), label: f.label, type: f.type, required: !!f.required };
+        if (f.options) o.options = f.options;
+        return o;
+      });
+      const rand = () => Math.random().toString(36).slice(2, 6);
+      for (const part of chunks(rows)) {
+        const { error } = await supabaseClient.from('events').insert(
+          part.map(r => ({ name: r.title, event_date: r.date, location: r.place || null, description: joinDesc(r), slug: 'cal-' + r.date.replace(/-/g, '') + '-' + rand(), form_schema: schema })));
+        if (error) throw error;
+      }
+    }
+    resEl.style.color = '#067A37';
+    resEl.textContent = '已匯入 ' + rows.length + ' 筆。';
+    await ciRefreshDup(); ciRender();
+    if (ciState.dest === 'event' && typeof loadEvents === 'function') loadEvents();
+    if (ciState.dest === 'task' && typeof loadTaskTemplates === 'function') loadTaskTemplates();
+    loadCcal();
+  } catch (err) {
+    resEl.style.color = '#B91C1C';
+    resEl.textContent = '匯入失敗：' + (err.message || err);
+    ciUpdateButton();
+  }
+});
 
 // ---------- 管理員角色 Admin Roles (super admin only) ----------
 const AR_ROLE_LABEL = { super_admin: '超級管理員', organizer: '主辦', staff: '報到工作人員' };
@@ -5122,18 +5861,8 @@ document.getElementById('assign-list-export-btn').addEventListener('click', () =
 
   const headers = ['姓名', '電話', '工作', '項目', '日期', '地點', '狀態', '時間'];
   const rows = allTaskAssignmentRows.map(r => [r.name, r.phone, r.task, r.item, r.date, r.place, r.status, r.time ? formatDate(r.time) : '']);
-  const csvLines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
-  const csvContent = csvLines.join('\r\n');
-
-  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `任務認領名單_${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  openCsvExtraDialog({ key: 'assign_list', title: '任務認領名單', headers, rows,
+    filename: `任務認領名單_${new Date().toISOString().slice(0, 10)}.csv` });
 });
 
 /* ---------- Upcoming: calendar sub-view ---------- */
