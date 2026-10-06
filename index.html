@@ -446,8 +446,11 @@
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
           <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
           <button type="button" class="dropdown-item" id="manage-calendar-btn">行事曆 Calendar</button>
+          <button type="button" class="dropdown-item" id="manage-trains-btn">🚆 火車時刻 Train Schedule</button>
+          <button type="button" class="dropdown-item" id="manage-saints-btn">🕯 仙佛紀念日 Saint Days</button>
           <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
           <button type="button" class="dropdown-item" id="manage-admin-roles-btn">管理員角色 Admin Roles</button>
+          <button type="button" class="dropdown-item" id="manage-perms-btn">管理者權限 Admin Permissions</button>
         </div>
       </div>
       <div class="topbar-dropdown" id="tan-affairs-dropdown">
@@ -547,13 +550,9 @@
       <h2>管理活動 Manage Events</h2>
       <p class="modal-sub">編輯活動內容、暫停報名，或永久刪除活動。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">活動管理頁面的 LINE 連結 Event admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯活動，功能與此後台相同</span></span>
-        <span id="event-admin-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">活動管理員 Event Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的活動管理頁面</span></span>
+        <span style="font-size:13px; color:var(--ink-soft);">活動管理員 Event Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用活動管理頁面</span></span>
         <button type="button" class="btn-text" id="manage-event-admins-btn">管理 Manage</button>
       </div>
 
@@ -571,6 +570,29 @@
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="manage-events-close-btn">關閉</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="perms-modal">
+    <div class="modal-box" style="max-width: 760px; width: 96vw;">
+      <h2>管理者權限 Admin Permissions</h2>
+      <p class="modal-sub">勾選每個人擁有的管理權限（LINE 帳號，手機端各管理頁使用）。勾選＝加入該功能的管理員名單，取消＝移除。</p>
+      <div style="overflow:auto; max-height:44vh; margin-bottom:12px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13.5px;" id="perms-table"></table>
+      </div>
+      <div class="modal-field">
+        <label>搜尋姓名以加入列表 Search name</label>
+        <input type="text" id="perms-search-input" placeholder="輸入姓名…">
+      </div>
+      <div id="perms-search-results" style="max-height:150px; overflow-y:auto; margin-bottom:10px;"></div>
+      <div style="border-top:1px solid var(--line); padding-top:12px; margin-top:6px;">
+        <div style="font-weight:700; margin-bottom:6px;">壇組長自動管理活動</div>
+        <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 8px;">勾選的組，其「組長」會自動管理所屬壇的活動（可編輯；不能新增、啟用／停用、刪除）。活動未設定所屬壇則不適用。</p>
+        <div id="perms-team-checks" style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px;"></div>
+        <div id="perms-leaders" style="font-size:13px; color:var(--ink-soft); line-height:1.8;"></div>
+      </div>
+      <div id="perms-msg" style="font-size:13px; min-height:18px; margin-top:8px;"></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="perms-close-btn">關閉</button></div>
     </div>
   </div>
 
@@ -598,20 +620,8 @@
       <h2>任務管理 Task Management</h2>
       <p class="modal-sub">建立每日／每週／每月的重複性工作，或手動指派人員。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">任務頁面的 LINE 連結 Task page LINE link</span>
-        <span id="tasks-liff-link-area"></span>
-      </div>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">工作管理頁面的 LINE 連結 Job admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯工作，功能與此後台相同</span></span>
-        <span id="tasks-admin-liff-link-area"></span>
-      </div>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">單次任務頁面的 LINE 連結 One-time task page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">獨立連結，只顯示頻率為「單次 One-time」的工作範本，不影響上方的一般任務連結</span></span>
-        <span id="tasks-once-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">工作管理員 Job Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的工作管理頁面</span></span>
@@ -867,15 +877,7 @@
       <h2>開班課程表 Flow Sheets</h2>
       <p class="modal-sub">建立班程的開班資訊與課程流程表，供 LIFF 查看。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">流程表查看頁面的 LINE 連結 Flow sheet view page LINE link</span>
-        <span id="activity-flow-liff-link-area"></span>
-      </div>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">開班課程表頁面的 LINE 連結 Flow admin page LINE link <span style="display:block; font-size:11.5px; margin-top:2px;">用手機在 LINE 中建立／編輯流程表，功能與此後台相同</span></span>
-        <span id="activity-flow-admin-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">流程管理員 Flow Admins <span style="display:block; font-size:11.5px; margin-top:2px;">只有在此名單中的 LINE 帳號才能使用上方的開班課程表頁面</span></span>
@@ -1003,6 +1005,56 @@
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="csv-extra-cancel-btn">取消</button>
         <button type="button" class="btn-new-event" id="csv-extra-download-btn" style="background:var(--accent-dark);">下載 CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="train-modal">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2>🚆 火車時刻（瑞穗站）</h2>
+      <p class="modal-sub">活動的「火車車次」欄位會用這裡「啟用」的班次，依抵達時間排序。修改後按「儲存」；已建立的活動要按「同步到進行中的活動」才會更新選項（已報名者的舊答案不會被改）。</p>
+      <div style="max-height:52vh; overflow:auto; border:1px solid var(--line); border-radius:8px;">
+        <table class="ci-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr><th>車次</th><th>車種</th><th>抵達</th><th>開車</th><th>運行區間</th><th>備註</th><th>啟用</th><th></th></tr></thead>
+          <tbody id="train-rows"></tbody>
+        </table>
+      </div>
+      <div id="train-msg" style="font-size:13px; margin-top:8px;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="train-add-btn">＋ 新增班次</button>
+        <button type="button" class="btn-cancel" id="train-sync-btn">同步到進行中的活動</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-cancel" id="train-close-btn">關閉</button>
+        <button type="button" class="btn-new-event" id="train-save-btn">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="saint-modal">
+    <div class="modal-box" style="max-width: 900px; width: 96vw;">
+      <h2>🕯 仙佛紀念日</h2>
+      <p class="modal-sub">依農曆年管理仙佛紀念日。輸入「農曆日期」（例：正月初一、閏四月初八）會自動換算成該年的國曆日期；也可按「複製上一年」一次帶入並換算。這裡的資料會顯示在行事曆的「仙佛紀念日」分類，手機行事曆同步看到。</p>
+      <div class="ccal-nav">
+        <button type="button" class="btn-cancel" id="saint-prev">‹</button>
+        <span class="ttl" id="saint-year">—</span>
+        <button type="button" class="btn-cancel" id="saint-next">›</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-cancel" id="saint-add-btn">＋ 新增</button>
+        <button type="button" class="btn-cancel" id="saint-recalc-btn" title="依每列的農曆日期，重算本年度的國曆日期">農曆→國曆 全部重算</button>
+        <button type="button" class="btn-cancel" id="saint-copy-btn" title="把上一年的紀念日複製過來，並依農曆日期換算本年的國曆日期">複製上一年</button>
+        <button type="button" class="btn-new-event" id="saint-import-btn" style="background:var(--accent-dark);">匯入 Word</button>
+      </div>
+      <div style="max-height:50vh; overflow:auto; border:1px solid var(--line); border-radius:8px;">
+        <table class="ci-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr><th>國曆日期</th><th>仙佛聖號</th><th>聖誕／成道</th><th>農曆日期</th><th>叩首禮</th><th></th></tr></thead>
+          <tbody id="saint-rows"></tbody>
+        </table>
+      </div>
+      <datalist id="sd-type-list"><option value="聖誕"><option value="成道"></datalist>
+      <div id="saint-msg" style="font-size:13px; margin-top:8px;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="saint-close-btn">關閉</button>
+        <button type="button" class="btn-new-event" id="saint-save-btn">儲存</button>
       </div>
     </div>
   </div>
@@ -1171,12 +1223,8 @@
   <div class="modal-overlay" id="carpool-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>🚗 共乘 Carpool</h2>
-      <p class="modal-sub">獨立的共乘 LINE 連結，成員可在此登記為司機或乘客申請共乘；共乘管理員可配對司機與乘客。</p>
+      <p class="modal-sub">成員可在此登記為司機或乘客申請共乘；共乘管理員可配對司機與乘客。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">共乘頁面的 LINE 連結 Carpool page LINE link</span>
-        <span id="carpool-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">共乘管理員 Car Managers <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於活動管理員的名單，只有在此名單中的帳號才能配對共乘</span></span>
@@ -1236,12 +1284,8 @@
   <div class="modal-overlay" id="lodging-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>🏠 住宿 Lodging</h2>
-      <p class="modal-sub">獨立的住宿 LINE 連結，成員可在此登記為房東或房客申請住宿；住宿管理員可配對房東與房客。</p>
+      <p class="modal-sub">成員可在此登記為房東或房客申請住宿；住宿管理員可配對房東與房客。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">住宿頁面的 LINE 連結 Lodging page LINE link</span>
-        <span id="lodging-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">住宿管理員 Lodging Managers <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於活動管理員與共乘管理員的名單，只有在此名單中的帳號才能配對住宿</span></span>
@@ -1301,12 +1345,8 @@
   <div class="modal-overlay" id="meetings-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>🗣️ 溝通共識 Meetings</h2>
-      <p class="modal-sub">獨立的會議 LINE 連結，成員可查看受邀的會議、簽到、閱讀紀錄與待辦事項；會議管理員可在同一頁面管理會議類型並記錄出席／紀錄／待辦事項。實際的會議排程、出席記錄與紀錄都在 LINE 頁面中操作，此處僅管理連結與管理員名單。</p>
+      <p class="modal-sub">成員可查看受邀的會議、簽到、閱讀紀錄與待辦事項；會議管理員可在同一頁面管理會議類型並記錄出席／紀錄／待辦事項。實際的會議排程、出席記錄與紀錄都在 LINE 頁面中操作，此處僅管理管理員名單。</p>
 
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">溝通共識頁面的 LINE 連結 Meetings page LINE link</span>
-        <span id="meetings-liff-link-area"></span>
-      </div>
 
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
         <span style="font-size:13px; color:var(--ink-soft);">會議管理員 Meeting Admins <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於其他管理員的名單，只有在此名單中的帳號才能管理會議類型與記錄</span></span>
@@ -1341,7 +1381,7 @@
   <div class="modal-overlay" id="altars-modal">
     <div class="modal-box" style="max-width: 560px;">
       <h2>⛩️ 壇 Altars</h2>
-      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。成員從「群聖家園」進入，只會看到自己所屬壇的入口，並且只看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護（不需要另外建立或分享 LINE 連結）。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
+      <p class="modal-sub">每個壇（地點）都有自己的天廚、佛堂、庶務、住壇四個組，各自有組長與組員，四組合併在同一個頁面。成員從「群聖家園」進入，只會看到自己所屬壇的入口，並且只看到自己壇的天廚／佛堂／庶務／住壇內容，與其他壇分開維護。壇可以有上下層（例：總壇 → 分壇），上層壇建立的工作／活動／流程表，只要選定該上層壇，下層壇也會自動看得到。</p>
 
       <div class="group-create-row">
         <input type="text" id="altar-new-name" placeholder="新壇名稱，例：分壇一">
@@ -1948,12 +1988,19 @@ function exportCsv() {
   }
 
   const customCols = currentEventFormSchema.map(f => f.label);
-  const headers = ['姓名', ...customCols, '備註', '報名人 Submitted by', '狀態', '報名時間'];
+  // Answers saved under fields that were later renamed/removed are still in the
+  // database — export them too, as extra "（已停用欄位）" columns.
+  const knownIds = new Set(currentEventFormSchema.map(f => f.id));
+  const orphanKeys = [];
+  allRegistrants.forEach(r => Object.keys(r.extra_data || {}).forEach(k => {
+    if (!knownIds.has(k) && !orphanKeys.includes(k) && String(r.extra_data[k] ?? '').trim() !== '') orphanKeys.push(k);
+  }));
+  const headers = ['姓名', ...customCols, ...orphanKeys.map(k => k + '（已停用欄位）'), '備註', '報名人 Submitted by', '狀態', '報名時間'];
 
   const rows = allRegistrants.map(r => {
     const u = r.users || {};
     const extra = r.extra_data || {};
-    const customValues = currentEventFormSchema.map(f => extra[f.id] || '');
+    const customValues = currentEventFormSchema.map(f => extra[f.id] || '').concat(orphanKeys.map(k => extra[k] || ''));
     return [
       r.attendee_name || '',
       ...customValues,
@@ -2193,7 +2240,7 @@ const DEFAULT_PERSONAL_FIELDS = [
 ];
 
 // 火車車次（瑞穗站抵達時間）— 依抵達時間排序；選項文字即為存入報名資料的值
-const TRAIN_OPTIONS = [
+let TRAIN_OPTIONS = [
   '306 自強 (3000) · 07:15 抵達瑞穗',
   '402 普悠瑪 · 08:58 抵達瑞穗',
   '406 自強 (3000) · 09:51 抵達瑞穗',
@@ -2210,6 +2257,17 @@ const TRAIN_OPTIONS = [
   '448 普悠瑪 · 23:12 抵達瑞穗'
 ];
 
+const trainLabel = (t) => `${t.train_no} ${t.train_type} · ${t.arrive_time} 抵達瑞穗`;
+// Loads the active timetable (sorted by arrival); keeps the built-in list if the table isn't there yet.
+async function loadTrainOptions() {
+  try {
+    const { data, error } = await supabaseClient.from('train_schedule').select('train_no, train_type, arrive_time').eq('is_active', true).order('arrive_time');
+    if (!error && data) TRAIN_OPTIONS = data.map(trainLabel);
+  } catch (e) { /* keep built-in list */ }
+  return TRAIN_OPTIONS;
+}
+
+
 function addFieldBuilderRow(prefill) {
   const id = 'fb-' + (fieldBuilderCount++);
   const isRequired = !!(prefill && prefill.required);
@@ -2217,6 +2275,8 @@ function addFieldBuilderRow(prefill) {
   wrap.className = 'field-builder-item';
   wrap.dataset.rowId = id;
   wrap.dataset.required = isRequired ? '1' : '0';
+  // Keep an existing field's id stable across renames so saved answers stay attached to it.
+  if (prefill && prefill.id) wrap.dataset.fieldId = prefill.id;
 
   wrap.innerHTML = `
     <div class="fb-row1">
@@ -2288,6 +2348,7 @@ async function openEventModal(eventToEdit) {
   document.getElementById('ne-error').style.display = 'none';
   document.getElementById('ne-slug').removeAttribute('data-touched');
 
+  loadTrainOptions();
   if (eventToEdit) {
     document.getElementById('ne-modal-title').textContent = '編輯活動 Edit Event';
     document.getElementById('ne-submit-btn').textContent = '儲存變更 Save';
@@ -2412,12 +2473,21 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
   }
 
   const formSchema = [];
+  // ids of fields that already exist are reserved first, so a new field with a
+  // similar label can't steal them.
+  const usedIds = new Set();
+  document.querySelectorAll('#field-builder-list .field-builder-item').forEach(row => { if (row.dataset.fieldId) usedIds.add(row.dataset.fieldId); });
   document.querySelectorAll('#field-builder-list .field-builder-item').forEach(row => {
     const label = row.querySelector('.fb-label').value.trim();
     if (!label) return;
     const type = row.querySelector('.fb-type').value;
     const required = row.dataset.required === '1';
-    const fieldId = label.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '_').replace(/^_+|_+$/g, '') || ('field_' + formSchema.length);
+    let fieldId = row.dataset.fieldId || label.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '_').replace(/^_+|_+$/g, '') || ('field_' + formSchema.length);
+    if (!row.dataset.fieldId) {
+      const base = fieldId; let n = 2;
+      while (usedIds.has(fieldId)) fieldId = base + '_' + (n++);
+      usedIds.add(fieldId);
+    }
     const field = { id: fieldId, label, type, required };
     if (type === 'select') {
       const opts = row.querySelector('.fb-options').value.split(',').map(s => s.trim()).filter(Boolean);
@@ -2514,7 +2584,6 @@ async function createLiffGeneric(purpose, endpointPath, name) {
 
 document.getElementById('manage-events-btn').addEventListener('click', () => {
   renderManageEventsList();
-  loadEventAdminLiffStatus();
   document.getElementById('manage-events-modal').classList.add('show');
 });
 
@@ -2522,10 +2591,6 @@ document.getElementById('manage-events-close-btn').addEventListener('click', () 
   document.getElementById('manage-events-modal').classList.remove('show');
 });
 
-async function loadEventAdminLiffStatus() {
-  const areaEl = document.getElementById('event-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 document.getElementById('manage-event-admins-btn').addEventListener('click', () => {
   document.getElementById('event-admin-search-input').value = '';
@@ -2612,6 +2677,136 @@ async function runEventAdminSearch(query) {
     });
   });
 }
+
+/* ---------- 管理者權限矩陣 Admin Permissions (super admin) ----------
+   One screen over the six per-feature admin lists. Ticking inserts into /
+   deletes from the original table, so every existing permission check
+   keeps working unchanged. Altar team leaders are shown read-only. */
+const PERM_DEFS = [
+  { key: 'event',   table: 'event_admins',           label: '活動' },
+  { key: 'task',    table: 'task_job_admins',        label: '任務' },
+  { key: 'car',     table: 'car_manager_admins',     label: '共乘' },
+  { key: 'lodging', table: 'lodging_manager_admins', label: '住宿' },
+  { key: 'meeting', table: 'meeting_admins',         label: '會議' },
+  { key: 'flow',    table: 'activity_flow_admins',   label: '流程' },
+];
+const PERM_TEAM_LABELS = { kitchen: '天廚', shrine: '佛堂', general: '庶務', resident: '住壇' };
+let permState = { have: {}, users: {}, extra: new Set() };
+
+function permMsg(t, bad) {
+  const el = document.getElementById('perms-msg');
+  el.style.color = bad ? 'var(--red)' : 'var(--ink-soft)';
+  el.textContent = t || '';
+}
+
+async function loadPerms() {
+  permMsg('載入中…');
+  const have = {};
+  const ids = new Set(permState.extra);
+  for (const d of PERM_DEFS) {
+    const { data, error } = await supabaseClient.from(d.table).select('user_id');
+    if (error) { permMsg('載入失敗（' + d.table + '）：' + error.message, true); have[d.key] = new Set(); continue; }
+    have[d.key] = new Set((data || []).map(r => r.user_id));
+    (data || []).forEach(r => ids.add(r.user_id));
+  }
+  permState.have = have;
+
+  const users = {};
+  if (ids.size) {
+    const { data } = await supabaseClient.from('users').select('id, display_name').in('id', [...ids]);
+    (data || []).forEach(u => { users[u.id] = u.display_name || '—'; });
+  }
+  permState.users = users;
+  renderPermsTable([...ids].sort((a, b) => (users[a] || '').localeCompare(users[b] || '', 'zh-Hant')));
+  await loadPermLeaders();
+  permMsg('');
+}
+
+function renderPermsTable(ids) {
+  const t = document.getElementById('perms-table');
+  const th = 'style="padding:8px 6px; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap;"';
+  const head = '<tr><th style="padding:8px 6px; border-bottom:1px solid var(--line); text-align:left;">人員</th>' +
+    PERM_DEFS.map(d => '<th ' + th + '>' + d.label + '</th>').join('') + '</tr>';
+  if (!ids.length) { t.innerHTML = head + '<tr><td colspan="' + (PERM_DEFS.length + 1) + '" style="padding:14px; color:var(--ink-soft);">尚無管理者，請由下方搜尋加入。</td></tr>'; return; }
+  t.innerHTML = head + ids.map(id => '<tr data-uid="' + id + '"><td style="padding:7px 6px; border-bottom:1px solid var(--line);">' + escapeHtml(permState.users[id] || '—') + '</td>' +
+    PERM_DEFS.map(d => '<td ' + th + '><input type="checkbox" class="perm-cb" data-key="' + d.key + '" ' + (permState.have[d.key].has(id) ? 'checked' : '') + ' style="width:18px;height:18px;"></td>').join('') + '</tr>').join('');
+  t.querySelectorAll('.perm-cb').forEach(cb => cb.addEventListener('change', async () => {
+    const uid = cb.closest('tr').dataset.uid;
+    const def = PERM_DEFS.find(d => d.key === cb.dataset.key);
+    cb.disabled = true;
+    let error;
+    if (cb.checked) {
+      ({ error } = await supabaseClient.from(def.table).insert({ user_id: uid }));
+      if (error && /duplicate/i.test(error.message)) error = null;
+    } else {
+      ({ error } = await supabaseClient.from(def.table).delete().eq('user_id', uid));
+    }
+    cb.disabled = false;
+    if (error) { cb.checked = !cb.checked; permMsg('更新失敗：' + error.message, true); return; }
+    if (cb.checked) permState.have[def.key].add(uid); else permState.have[def.key].delete(uid);
+    permMsg('已更新');
+  }));
+}
+
+async function loadPermLeaders() {
+  const checks = document.getElementById('perms-team-checks');
+  const out = document.getElementById('perms-leaders');
+  let teams = ['shrine', 'general', 'resident'], tableOk = true;
+  const tr = await supabaseClient.from('altar_manager_teams').select('team');
+  if (tr.error) { tableOk = false; } else { teams = (tr.data || []).map(r => r.team); }
+  checks.innerHTML = Object.keys(PERM_TEAM_LABELS).map(k => '<label style="display:flex;align-items:center;gap:5px;font-size:13.5px;"><input type="checkbox" class="perm-team-cb" value="' + k + '" ' + (teams.includes(k) ? 'checked' : '') + (tableOk ? '' : ' disabled') + '> ' + PERM_TEAM_LABELS[k] + '</label>').join('') +
+    (tableOk ? '' : '<span style="font-size:12.5px;color:var(--red);">請先執行 SQL/53-altar-manager-teams.sql（目前使用預設：佛堂、庶務、住壇）</span>');
+  checks.querySelectorAll('.perm-team-cb').forEach(cb => cb.addEventListener('change', async () => {
+    cb.disabled = true;
+    const { error } = cb.checked
+      ? await supabaseClient.from('altar_manager_teams').upsert({ team: cb.value })
+      : await supabaseClient.from('altar_manager_teams').delete().eq('team', cb.value);
+    cb.disabled = false;
+    if (error) { cb.checked = !cb.checked; permMsg('更新失敗：' + error.message, true); return; }
+    permMsg('已更新');
+    loadPermLeaders();
+  }));
+
+  const [{ data: leaders }, { data: altars }] = await Promise.all([
+    supabaseClient.from('altar_team_members').select('altar_id, team, user_id').eq('role', 'leader').in('team', teams.length ? teams : ['_none']),
+    supabaseClient.from('altars').select('id, name'),
+  ]);
+  const an = {}; (altars || []).forEach(a => { an[a.id] = a.name; });
+  const uids = [...new Set((leaders || []).map(l => l.user_id))];
+  const un = {};
+  if (uids.length) { const { data } = await supabaseClient.from('users').select('id, display_name').in('id', uids); (data || []).forEach(u => { un[u.id] = u.display_name; }); }
+  out.innerHTML = (leaders && leaders.length)
+    ? '目前自動管理活動的組長：<br>' + leaders.map(l => '・' + escapeHtml(un[l.user_id] || '—') + '（' + escapeHtml(an[l.altar_id] || '—') + '・' + (PERM_TEAM_LABELS[l.team] || l.team) + '組長）').join('<br>')
+    : '目前沒有符合的組長。';
+}
+
+document.getElementById('manage-perms-btn').addEventListener('click', () => {
+  document.getElementById('perms-search-input').value = '';
+  document.getElementById('perms-search-results').innerHTML = '';
+  document.getElementById('perms-modal').classList.add('show');
+  loadPerms();
+});
+document.getElementById('perms-close-btn').addEventListener('click', () => document.getElementById('perms-modal').classList.remove('show'));
+
+let permsSearchDebounce = null;
+document.getElementById('perms-search-input').addEventListener('input', (e) => {
+  clearTimeout(permsSearchDebounce);
+  const q = e.target.value.trim();
+  permsSearchDebounce = setTimeout(async () => {
+    const el = document.getElementById('perms-search-results');
+    if (!q) { el.innerHTML = ''; return; }
+    const { data, error } = await supabaseClient.from('users').select('id, display_name').ilike('display_name', '%' + q + '%').limit(15);
+    if (error) { el.innerHTML = '<div style="color:var(--red);font-size:12.5px;">' + escapeHtml(error.message) + '</div>'; return; }
+    if (!data || !data.length) { el.innerHTML = '<div style="color:var(--ink-soft);font-size:12.5px;padding:8px 4px;">找不到符合的人員（對方須先用 LINE 開啟過任一頁面連結一次）。</div>'; return; }
+    el.innerHTML = data.map(u => '<div class="assign-result-row"><span>' + escapeHtml(u.display_name || '—') + '</span><button type="button" class="perm-add-btn" data-id="' + u.id + '">加入列表</button></div>').join('');
+    el.querySelectorAll('.perm-add-btn').forEach(b => b.addEventListener('click', () => {
+      permState.extra.add(b.dataset.id);
+      document.getElementById('perms-search-input').value = '';
+      el.innerHTML = '';
+      loadPerms();
+    }));
+  }, 300);
+});
 
 function renderManageEventsList() {
   const tbody = document.getElementById('manage-events-list');
@@ -2724,28 +2919,9 @@ document.getElementById('manage-tasks-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.add('show');
   switchTasksTab('templates');
   loadTaskTemplates();
-  loadTasksLiffStatus();
-  loadTasksAdminLiffStatus();
-  loadTasksOnceLiffStatus();
 });
 
-async function loadTasksLiffStatus() {
-  const areaEl = document.getElementById('tasks-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
-async function loadTasksAdminLiffStatus() {
-  const areaEl = document.getElementById('tasks-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
-// ---- Separate, independent LIFF link that shows ONLY templates with
-// recurrence 'once' (tasks-once.html) — a distinct purpose/link from
-// 'tasks' above, so it can be shared on its own without touching the
-// original Task Roster link or page. ----
-async function loadTasksOnceLiffStatus() {
-  const areaEl = document.getElementById('tasks-once-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 document.getElementById('tasks-modal-close-btn').addEventListener('click', () => {
   document.getElementById('tasks-modal').classList.remove('show');
@@ -2828,6 +3004,49 @@ function ciNormalize(t) {
     .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
     .replace(/[／]/g, '/').replace(/[－—–﹣]/g, '-').replace(/[～〜]/g, '~').replace(/[．。]/g, '.')
     .replace(/ /g, ' ');
+}
+
+/* ---------- 農曆 → 國曆（瀏覽器內建 Intl 中國曆，免外部資料） ---------- */
+const LUNAR_FMT = (() => { try { return new Intl.DateTimeFormat('en-US-u-ca-chinese', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' }); } catch (e) { return null; } })();
+const lunarMapCache = {};
+// Map "月[b]-日" → 'YYYY-MM-DD' for one lunar year (b = 閏月). Also remembers the lunar new year start/end.
+function lunarYearMap(y) {
+  if (lunarMapCache[y]) return lunarMapCache[y];
+  const map = {}; let first = null, last = null;
+  if (!LUNAR_FMT) return (lunarMapCache[y] = { map, first, last, ok: false });
+  const d = new Date(Date.UTC(y, 0, 1, 12));
+  const stop = Date.UTC(y + 1, 3, 15, 12);
+  while (d.getTime() <= stop) {
+    const p = {}; LUNAR_FMT.formatToParts(d).forEach(x => { p[x.type] = x.value; });
+    if (+p.relatedYear === y) {
+      const leap = /bis/.test(p.month), m = parseInt(p.month, 10);
+      const iso = d.toISOString().slice(0, 10);
+      map[m + (leap ? 'b' : '') + '-' + parseInt(p.day, 10)] = iso;
+      if (!first) first = iso; last = iso;
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return (lunarMapCache[y] = { map, first, last, ok: true });
+}
+const LUNAR_NUM = { 零: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+function lunarParse(text) {
+  const t = String(text || '').replace(/\s+/g, '').replace(/[农]/g, '農').replace(/闰/g, '閏');
+  const m = t.match(/^(閏)?(正|冬|臘|腊|十二|十一|十|[一二三四五六七八九])月(初[一二三四五六七八九十]|二十|三十|廿[一二三四五六七八九]?|十[一二三四五六七八九]?|[一二三四五六七八九])日?$/);
+  if (!m) return null;
+  const mo = { 正: 1, 冬: 11, 臘: 12, 腊: 12, 十二: 12, 十一: 11, 十: 10 }[m[2]] || LUNAR_NUM[m[2]];
+  const ds = m[3]; let day;
+  if (ds[0] === '初') day = LUNAR_NUM[ds[1]];
+  else if (ds === '二十') day = 20; else if (ds === '三十') day = 30;
+  else if (ds[0] === '廿') day = 20 + (ds[1] ? LUNAR_NUM[ds[1]] : 0);
+  else if (ds[0] === '十') day = 10 + (ds[1] ? LUNAR_NUM[ds[1]] : 0);
+  else day = LUNAR_NUM[ds];
+  return { month: mo, leap: !!m[1], day };
+}
+// lunarYear = 農曆年（以正月初一所在的西曆年表示，例：丙午年＝2026）
+function lunarToSolar(text, lunarYear) {
+  const p = lunarParse(text); if (!p) return null;
+  const { map } = lunarYearMap(+lunarYear);
+  return map[p.month + (p.leap ? 'b' : '') + '-' + p.day] || null;
 }
 
 function ciValidDate(y, m, d) {
@@ -3007,11 +3226,16 @@ function buildImportRows(table, guess, map, year) {
     if (map.month >= 0) { const mm = cell('month').match(/(\d{1,2})/); if (mm && +mm[1] >= 1 && +mm[1] <= 12) month = +mm[1]; }
     if (!title && !dateText) return;
     let d = dateText ? parseDateCell(dateText, year, month) : null;
+    if (!d && map.time >= 0 && lunarParse(cell('time'))) {          // 只有農曆日期時，自動換算成國曆
+      const iso = lunarToSolar(cell('time'), year);
+      if (iso) d = { start: iso, end: null };
+    }
     let carried = false;
     if (!d && !dateText && prev) { d = prev; carried = true; }   // blank date → same day as the row above
     if (d && !carried) prev = d;
     if (!title) return;
     out.push({
+      name: cell('item'), stype: cell('stype'),
       date: d ? d.start : null, end: d ? d.end : null, dateText, carried,
       title, time: cell('time'), place: cell('place'), notes: cell('notes'),
       status: d ? 'ok' : 'baddate',
@@ -3019,6 +3243,216 @@ function buildImportRows(table, guess, map, year) {
   });
   return out;
 }
+
+/* ---------- 火車時刻管理 ---------- */
+let trainDeleted = [];
+const trainInput = 'padding:4px 6px; border:1px solid var(--line); border-radius:6px; width:100%; box-sizing:border-box;';
+function trainRowHTML(t) {
+  t = t || {};
+  return `<tr data-id="${t.id || ''}">
+    <td><input class="tr-no" style="${trainInput} width:70px;" value="${escapeHtml(t.train_no || '')}"></td>
+    <td><input class="tr-type" style="${trainInput} width:110px;" value="${escapeHtml(t.train_type || '')}"></td>
+    <td><input class="tr-arr" type="time" style="${trainInput} width:105px;" value="${escapeHtml(t.arrive_time || '')}"></td>
+    <td><input class="tr-dep" type="time" style="${trainInput} width:105px;" value="${escapeHtml(t.depart_time || '')}"></td>
+    <td><input class="tr-route" style="${trainInput}" value="${escapeHtml(t.route || '')}"></td>
+    <td><input class="tr-note" style="${trainInput}" value="${escapeHtml(t.note || '')}"></td>
+    <td style="text-align:center;"><input class="tr-active" type="checkbox" ${t.is_active === false ? '' : 'checked'}></td>
+    <td><button type="button" class="btn-text" style="color:var(--red);" data-train-del>刪除</button></td>
+  </tr>`;
+}
+async function openTrainManager() {
+  const msg = document.getElementById('train-msg'); msg.textContent = '載入中…'; msg.style.color = '';
+  document.getElementById('train-modal').classList.add('show');
+  trainDeleted = [];
+  const { data, error } = await supabaseClient.from('train_schedule').select('*').order('arrive_time');
+  if (error) { msg.style.color = '#B91C1C'; msg.textContent = '讀取失敗：' + error.message + '（是否已執行 SQL/51-train-schedule.sql？）'; document.getElementById('train-rows').innerHTML = ''; return; }
+  document.getElementById('train-rows').innerHTML = (data || []).map(trainRowHTML).join('');
+  msg.textContent = '';
+}
+document.getElementById('manage-trains-btn').addEventListener('click', openTrainManager);
+document.getElementById('train-close-btn').addEventListener('click', () => document.getElementById('train-modal').classList.remove('show'));
+document.getElementById('train-add-btn').addEventListener('click', () => {
+  document.getElementById('train-rows').insertAdjacentHTML('beforeend', trainRowHTML({}));
+  const rows = document.querySelectorAll('#train-rows tr'); rows[rows.length - 1].querySelector('.tr-no').focus();
+});
+document.getElementById('train-rows').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-train-del]'); if (!b) return;
+  const tr = b.closest('tr');
+  if (tr.dataset.id) trainDeleted.push(tr.dataset.id);
+  tr.remove();
+});
+const trainNorm = (v) => { const m = String(v || '').match(/^(\d{1,2}):(\d{2})/); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
+document.getElementById('train-save-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('train-msg');
+  const rows = Array.from(document.querySelectorAll('#train-rows tr')).map(tr => ({
+    id: tr.dataset.id || null,
+    train_no: tr.querySelector('.tr-no').value.trim(),
+    train_type: tr.querySelector('.tr-type').value.trim(),
+    arrive_time: trainNorm(tr.querySelector('.tr-arr').value),
+    depart_time: trainNorm(tr.querySelector('.tr-dep').value) || null,
+    route: tr.querySelector('.tr-route').value.trim() || null,
+    note: tr.querySelector('.tr-note').value.trim() || null,
+    is_active: tr.querySelector('.tr-active').checked,
+  }));
+  msg.style.color = '#B91C1C';
+  const bad = rows.findIndex(r => !r.train_no || !r.train_type || !r.arrive_time);
+  if (bad >= 0) { msg.textContent = '第 ' + (bad + 1) + ' 列：車次、車種、抵達時間都要填。'; return; }
+  const dup = rows.find((r, i) => rows.findIndex(x => x.train_no === r.train_no) !== i);
+  if (dup) { msg.textContent = '車次「' + dup.train_no + '」重複了。'; return; }
+  const btn = document.getElementById('train-save-btn'); btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    if (trainDeleted.length) { const { error } = await supabaseClient.from('train_schedule').delete().in('id', trainDeleted); if (error) throw error; }
+    const old = rows.filter(r => r.id), fresh = rows.filter(r => !r.id).map(({ id, ...r }) => r);
+    if (old.length) { const { error } = await supabaseClient.from('train_schedule').upsert(old, { onConflict: 'id' }); if (error) throw error; }
+    if (fresh.length) { const { error } = await supabaseClient.from('train_schedule').insert(fresh); if (error) throw error; }
+    await openTrainManager();
+    await loadTrainOptions();
+    msg.style.color = '#067A37'; msg.textContent = '已儲存。新建立的活動會用新時刻表；既有活動請按「同步到進行中的活動」。';
+  } catch (err) {
+    msg.style.color = '#B91C1C'; msg.textContent = '儲存失敗：' + (err.message || err);
+  } finally { btn.disabled = false; btn.textContent = '儲存'; }
+});
+document.getElementById('train-sync-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('train-msg'); msg.style.color = '#B91C1C';
+  try {
+    const opts = await loadTrainOptions();
+    if (opts.length === 0) { msg.textContent = '目前沒有啟用的班次，不同步。'; return; }
+    const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data, error } = await supabaseClient.from('events').select('id, name, form_schema, event_date, is_active');
+    if (error) throw error;
+    const targets = (data || []).filter(ev => ev.is_active !== false && (!ev.event_date || ev.event_date >= today)
+      && (ev.form_schema || []).some(f => f.type === 'train'));
+    if (targets.length === 0) { msg.style.color = ''; msg.textContent = '沒有進行中且含「火車車次」欄位的活動。'; return; }
+    if (!confirm('要把新時刻表同步到這 ' + targets.length + ' 個活動嗎？\n' + targets.map(t => '・' + t.name).join('\n') + '\n\n已報名者的答案不會被改。')) return;
+    for (const ev of targets) {
+      const schema = ev.form_schema.map(f => f.type === 'train' ? { ...f, options: opts.slice() } : f);
+      const { error: e2 } = await supabaseClient.from('events').update({ form_schema: schema }).eq('id', ev.id);
+      if (e2) throw e2;
+    }
+    msg.style.color = '#067A37'; msg.textContent = '已同步 ' + targets.length + ' 個活動。';
+  } catch (err) { msg.textContent = '同步失敗：' + (err.message || err); }
+});
+
+/* ---------- 仙佛紀念日管理 ---------- */
+let saintYear = new Date().getFullYear(), saintDeleted = [];
+const saintInput = 'padding:4px 6px; border:1px solid var(--line); border-radius:6px; width:100%; box-sizing:border-box;';
+function saintRowHTML(e) {
+  e = e || {};
+  const type = e.saint_type != null ? e.saint_type : '';
+  return `<tr data-id="${e.id || ''}">
+    <td><input class="sd-date" type="date" style="${saintInput} width:140px;" value="${escapeHtml(e.entry_date || '')}"></td>
+    <td><input class="sd-name" style="${saintInput}" value="${escapeHtml(e.saint_name != null ? e.saint_name : (e.title || ''))}"></td>
+    <td><input class="sd-type" list="sd-type-list" style="${saintInput} width:90px;" value="${escapeHtml(type)}"></td>
+    <td><input class="sd-lunar" style="${saintInput} width:110px;" value="${escapeHtml(e.lunar_text || '')}"></td>
+    <td><input class="sd-kowtow" style="${saintInput} width:120px;" value="${escapeHtml(e.kowtow || '')}"></td>
+    <td><button type="button" class="btn-text" style="color:var(--red);" data-saint-del>刪除</button></td>
+  </tr>`;
+}
+async function loadSaintRows() {
+  const msg = document.getElementById('saint-msg'); msg.style.color = ''; msg.textContent = '載入中…';
+  const ly = lunarYearMap(saintYear);
+  const lo = ly.ok ? ly.first : saintYear + '-01-01', hi = ly.ok ? ly.last : saintYear + '-12-31';
+  document.getElementById('saint-year').textContent = saintYear + ' 年' + (ly.ok ? '（農曆年 ' + lo.slice(5) + ' ～ ' + hi.slice(0, 4) + '/' + hi.slice(5) + '）' : '');
+  saintDeleted = [];
+  const { data, error } = await supabaseClient.from('calendar_entries').select('*').eq('category', 'saint')
+    .gte('entry_date', lo).lte('entry_date', hi).order('entry_date');
+  if (error) { msg.style.color = '#B91C1C'; msg.textContent = '讀取失敗：' + error.message + '（是否已執行 SQL/50 與 SQL/52？）'; document.getElementById('saint-rows').innerHTML = ''; return; }
+  document.getElementById('saint-rows').innerHTML = (data || []).map(saintRowHTML).join('');
+  msg.textContent = (data || []).length ? '共 ' + data.length + ' 筆。' : '這一年還沒有資料，可「匯入 Word」或「＋ 新增」。';
+}
+document.getElementById('manage-saints-btn').addEventListener('click', () => {
+  document.getElementById('saint-modal').classList.add('show');
+  loadSaintRows();
+});
+document.getElementById('saint-close-btn').addEventListener('click', () => document.getElementById('saint-modal').classList.remove('show'));
+document.getElementById('saint-prev').addEventListener('click', () => { saintYear--; loadSaintRows(); });
+document.getElementById('saint-next').addEventListener('click', () => { saintYear++; loadSaintRows(); });
+document.getElementById('saint-add-btn').addEventListener('click', () => {
+  document.getElementById('saint-rows').insertAdjacentHTML('beforeend', saintRowHTML({ entry_date: saintYear + '-01-01', saint_type: '聖誕' }));
+  const rows = document.querySelectorAll('#saint-rows tr'); rows[rows.length - 1].querySelector('.sd-name').focus();
+});
+document.getElementById('saint-rows').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-saint-del]'); if (!b) return;
+  const tr = b.closest('tr');
+  if (tr.dataset.id) saintDeleted.push(tr.dataset.id);
+  tr.remove();
+});
+// 輸入農曆日期後自動換算本年度的國曆日期
+document.getElementById('saint-rows').addEventListener('change', (e) => {
+  const inp = e.target.closest('.sd-lunar'); if (!inp) return;
+  const msg = document.getElementById('saint-msg');
+  if (!inp.value.trim()) return;
+  const iso = lunarToSolar(inp.value, saintYear);
+  if (iso) { inp.closest('tr').querySelector('.sd-date').value = iso; msg.style.color = '#067A37'; msg.textContent = '農曆「' + inp.value.trim() + '」→ 國曆 ' + iso; }
+  else { msg.style.color = '#B91C1C'; msg.textContent = '看不懂農曆日期「' + inp.value.trim() + '」，格式例：正月初一、十二月廿四、閏四月初八。'; }
+});
+document.getElementById('saint-recalc-btn').addEventListener('click', () => {
+  const msg = document.getElementById('saint-msg'); let ok = 0, bad = 0;
+  document.querySelectorAll('#saint-rows tr').forEach(tr => {
+    const l = tr.querySelector('.sd-lunar').value.trim(); if (!l) return;
+    const iso = lunarToSolar(l, saintYear);
+    if (iso) { tr.querySelector('.sd-date').value = iso; ok++; } else bad++;
+  });
+  msg.style.color = bad ? '#B91C1C' : '#067A37';
+  msg.textContent = '已換算 ' + ok + ' 筆' + (bad ? '，' + bad + ' 筆農曆日期無法判讀或該年沒有這一天' : '') + '。記得按「儲存」。';
+});
+document.getElementById('saint-copy-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('saint-msg'); msg.style.color = '#B91C1C';
+  const py = lunarYearMap(saintYear - 1);
+  if (!py.ok) { msg.textContent = '此瀏覽器不支援農曆換算。'; return; }
+  const { data, error } = await supabaseClient.from('calendar_entries').select('*').eq('category', 'saint')
+    .gte('entry_date', py.first).lte('entry_date', py.last).order('entry_date');
+  if (error) { msg.textContent = '讀取上一年失敗：' + error.message; return; }
+  const have = new Set(Array.from(document.querySelectorAll('#saint-rows tr')).map(tr => tr.querySelector('.sd-name').value.trim() + '|' + tr.querySelector('.sd-type').value.trim()));
+  let added = 0, skipped = 0, noLunar = 0, html = '';
+  (data || []).forEach(e => {
+    const key = (e.saint_name || e.title || '') + '|' + (e.saint_type || '');
+    if (have.has(key)) { skipped++; return; }
+    const iso = lunarToSolar(e.lunar_text, saintYear);
+    if (!iso) { noLunar++; return; }
+    html += saintRowHTML({ entry_date: iso, saint_name: e.saint_name, saint_type: e.saint_type, title: e.title, lunar_text: e.lunar_text, kowtow: e.kowtow });
+    added++;
+  });
+  document.getElementById('saint-rows').insertAdjacentHTML('beforeend', html);
+  msg.style.color = added ? '#067A37' : '#B91C1C';
+  msg.textContent = '已從 ' + (saintYear - 1) + ' 年複製 ' + added + ' 筆（國曆已換算）' + (skipped ? '，略過已存在 ' + skipped + ' 筆' : '') + (noLunar ? '，' + noLunar + ' 筆沒有可換算的農曆日期' : '') + '。確認後請按「儲存」。';
+});
+document.getElementById('saint-import-btn').addEventListener('click', () => {
+  document.querySelector('input[name="ci-dest"][value="saint"]').checked = true;
+  document.getElementById('ccal-import-btn').click();
+});
+document.getElementById('saint-save-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('saint-msg'); msg.style.color = '#B91C1C';
+  const rows = Array.from(document.querySelectorAll('#saint-rows tr')).map(tr => {
+    const name = tr.querySelector('.sd-name').value.trim(), type = tr.querySelector('.sd-type').value.trim();
+    return {
+      id: tr.dataset.id || null,
+      entry_date: tr.querySelector('.sd-date').value,
+      end_date: null,
+      title: name + (type ? ' ' + type : ''),
+      category: 'saint', saint_name: name, saint_type: type || null,
+      lunar_text: tr.querySelector('.sd-lunar').value.trim() || null,
+      kowtow: tr.querySelector('.sd-kowtow').value.trim() || null,
+    };
+  });
+  const bad = rows.findIndex(r => !r.entry_date || !r.saint_name);
+  if (bad >= 0) { msg.textContent = '第 ' + (bad + 1) + ' 列：國曆日期與仙佛聖號都要填。'; return; }
+  const dup = rows.find((r, i) => rows.findIndex(x => x.entry_date === r.entry_date && x.title === r.title) !== i);
+  if (dup) { msg.textContent = '「' + dup.entry_date + ' ' + dup.title + '」重複了。'; return; }
+  const btn = document.getElementById('saint-save-btn'); btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    if (saintDeleted.length) { const { error } = await supabaseClient.from('calendar_entries').delete().in('id', saintDeleted); if (error) throw error; }
+    const old = rows.filter(r => r.id), fresh = rows.filter(r => !r.id).map(({ id, ...r }) => r);
+    if (old.length) { const { error } = await supabaseClient.from('calendar_entries').upsert(old, { onConflict: 'id' }); if (error) throw error; }
+    if (fresh.length) { const { error } = await supabaseClient.from('calendar_entries').insert(fresh); if (error) throw error; }
+    await loadSaintRows();
+    if (document.getElementById('cal-modal').classList.contains('show')) loadCcal();
+    msg.style.color = '#067A37'; msg.textContent = '已儲存。';
+  } catch (err) {
+    msg.style.color = '#B91C1C';
+    msg.textContent = '儲存失敗：' + (/duplicate|unique/i.test(err.message || '') ? '同一天已有相同名稱的紀念日。' : (err.message || err) + (/column|schema cache/i.test(err.message || '') ? '（請先執行 SQL/50 與 SQL/52）' : ''));
+  } finally { btn.disabled = false; btn.textContent = '儲存'; }
+});
 
 /* ---------- 行事曆 Calendar (Dashboard) ---------- */
 
@@ -3338,13 +3772,18 @@ document.getElementById('ci-do-btn').addEventListener('click', async () => {
     const chunks = (arr) => { const o = []; for (let i = 0; i < arr.length; i += 100) o.push(arr.slice(i, i + 100)); return o; };
     if (ciState.dest === 'entry' || ciState.dest === 'saint') {
       const isSaint = ciState.dest === 'saint';
+      const toRow = (r, slim) => isSaint
+        ? Object.assign({ entry_date: r.date, end_date: null, title: r.title, category: 'saint', lunar_text: r.time || null, kowtow: r.place || null, source: ciState.fileName },
+            slim ? {} : { saint_name: r.name || null, saint_type: r.stype || null })
+        : { entry_date: r.date, end_date: r.end, title: r.title, time_text: r.time || null, place: r.place || null, notes: r.notes || null, source: ciState.fileName };
+      let slim = false;   // 尚未執行 SQL 52（沒有 saint_name／saint_type 欄位）時，改用精簡欄位也能匯入
       for (const part of chunks(rows)) {
-        const { error } = await supabaseClient.from('calendar_entries').upsert(
-          part.map(r => isSaint
-            ? { entry_date: r.date, end_date: null, title: r.title, category: 'saint', lunar_text: r.time || null, kowtow: r.place || null, source: ciState.fileName }
-            : { entry_date: r.date, end_date: r.end, title: r.title, time_text: r.time || null, place: r.place || null, notes: r.notes || null, source: ciState.fileName }),
-          { onConflict: 'entry_date,title', ignoreDuplicates: true });
-        if (error) throw error;
+        let res = await supabaseClient.from('calendar_entries').upsert(part.map(r => toRow(r, slim)), { onConflict: 'entry_date,title', ignoreDuplicates: true });
+        if (res.error && isSaint && !slim && /saint_(name|type)/.test(res.error.message || '')) {
+          slim = true;
+          res = await supabaseClient.from('calendar_entries').upsert(part.map(r => toRow(r, true)), { onConflict: 'entry_date,title', ignoreDuplicates: true });
+        }
+        if (res.error) throw res.error;
       }
     } else if (ciState.dest === 'task') {
       for (const part of chunks(rows)) {
@@ -3371,9 +3810,11 @@ document.getElementById('ci-do-btn').addEventListener('click', async () => {
     if (ciState.dest === 'event' && typeof loadEvents === 'function') loadEvents();
     if (ciState.dest === 'task' && typeof loadTaskTemplates === 'function') loadTaskTemplates();
     loadCcal();
+    if (ciState.dest === 'saint' && document.getElementById('saint-modal').classList.contains('show')) loadSaintRows();
   } catch (err) {
     resEl.style.color = '#B91C1C';
-    resEl.textContent = '匯入失敗：' + (err.message || err);
+    const em = String((err && err.message) || err);
+    resEl.textContent = '匯入失敗：' + em + (/column|schema cache|category|lunar_text|kowtow/i.test(em) ? '（請先在 Supabase 執行 SQL/50-calendar-saint-days.sql；仙佛紀念日管理還需要 SQL/52）' : '') + (/relation .*does not exist|schema cache.*table/i.test(em) ? '（請先執行 SQL/47-calendar-entries.sql）' : '');
     ciUpdateButton();
   }
 });
@@ -3724,7 +4165,6 @@ const TRIP_STATUS_LABELS = {
 
 document.getElementById('manage-carpool-btn').addEventListener('click', () => {
   document.getElementById('carpool-modal').classList.add('show');
-  loadCarpoolLiffStatus();
   renderCarpoolEventList();
 });
 document.getElementById('carpool-modal-close-btn').addEventListener('click', () => {
@@ -3732,10 +4172,6 @@ document.getElementById('carpool-modal-close-btn').addEventListener('click', () 
   refreshPendingBadges();
 });
 
-async function loadCarpoolLiffStatus() {
-  const areaEl = document.getElementById('carpool-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 /* ---------- Car Managers (global permission list) ---------- */
 
@@ -4064,7 +4500,6 @@ const LODGING_STATUS_LABELS = {
 
 document.getElementById('manage-lodging-btn').addEventListener('click', () => {
   document.getElementById('lodging-modal').classList.add('show');
-  loadLodgingLiffStatus();
   renderLodgingEventList();
 });
 document.getElementById('lodging-modal-close-btn').addEventListener('click', () => {
@@ -4072,10 +4507,6 @@ document.getElementById('lodging-modal-close-btn').addEventListener('click', () 
   refreshPendingBadges();
 });
 
-async function loadLodgingLiffStatus() {
-  const areaEl = document.getElementById('lodging-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 /* ---------- Lodging Managers (global permission list) ---------- */
 
@@ -4174,16 +4605,11 @@ async function runLodgingManagerSearch(query) {
 
 document.getElementById('manage-meetings-btn').addEventListener('click', () => {
   document.getElementById('meetings-modal').classList.add('show');
-  loadMeetingsLiffStatus();
 });
 document.getElementById('meetings-modal-close-btn').addEventListener('click', () => {
   document.getElementById('meetings-modal').classList.remove('show');
 });
 
-async function loadMeetingsLiffStatus() {
-  const areaEl = document.getElementById('meetings-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 /* ---------- Meeting Admins (global permission list) ---------- */
 
@@ -4906,21 +5332,11 @@ function dateRange(startStr, endStr) {
 document.getElementById('manage-flows-btn').addEventListener('click', () => {
   document.getElementById('flows-modal').classList.add('show');
   loadFlowSheets();
-  loadActivityFlowLiffStatus();
-  loadActivityFlowAdminLiffStatus();
 });
 document.getElementById('flows-modal-close-btn').addEventListener('click', () => {
   document.getElementById('flows-modal').classList.remove('show');
 });
 
-async function loadActivityFlowLiffStatus() {
-  const areaEl = document.getElementById('activity-flow-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
-async function loadActivityFlowAdminLiffStatus() {
-  const areaEl = document.getElementById('activity-flow-admin-liff-link-area');
-  areaEl.innerHTML = '<span style="font-size:12px; color:var(--ink-soft);">由「群聖家園」開啟，不需要另外的連結</span>';
-}
 
 /* ---------- Flow list ---------- */
 
