@@ -446,6 +446,7 @@
           <button type="button" class="dropdown-item" id="manage-flows-btn">流程表 Flow Sheets</button>
           <button type="button" class="dropdown-item" id="manage-home-btn">群聖家園連結 Home Link</button>
           <button type="button" class="dropdown-item" id="manage-calendar-btn">行事曆 Calendar</button>
+          <button type="button" class="dropdown-item" id="manage-trains-btn">🚆 火車時刻 Train Schedule</button>
           <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
           <button type="button" class="dropdown-item" id="manage-admin-roles-btn">管理員角色 Admin Roles</button>
         </div>
@@ -979,6 +980,27 @@
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="csv-extra-cancel-btn">取消</button>
         <button type="button" class="btn-new-event" id="csv-extra-download-btn" style="background:var(--accent-dark);">下載 CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="train-modal">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2>🚆 火車時刻（瑞穗站）</h2>
+      <p class="modal-sub">活動的「火車車次」欄位會用這裡「啟用」的班次，依抵達時間排序。修改後按「儲存」；已建立的活動要按「同步到進行中的活動」才會更新選項（已報名者的舊答案不會被改）。</p>
+      <div style="max-height:52vh; overflow:auto; border:1px solid var(--line); border-radius:8px;">
+        <table class="ci-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr><th>車次</th><th>車種</th><th>抵達</th><th>開車</th><th>運行區間</th><th>備註</th><th>啟用</th><th></th></tr></thead>
+          <tbody id="train-rows"></tbody>
+        </table>
+      </div>
+      <div id="train-msg" style="font-size:13px; margin-top:8px;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="train-add-btn">＋ 新增班次</button>
+        <button type="button" class="btn-cancel" id="train-sync-btn">同步到進行中的活動</button>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-cancel" id="train-close-btn">關閉</button>
+        <button type="button" class="btn-new-event" id="train-save-btn">儲存</button>
       </div>
     </div>
   </div>
@@ -2164,7 +2186,7 @@ const DEFAULT_PERSONAL_FIELDS = [
 ];
 
 // 火車車次（瑞穗站抵達時間）— 依抵達時間排序；選項文字即為存入報名資料的值
-const TRAIN_OPTIONS = [
+let TRAIN_OPTIONS = [
   '306 自強 (3000) · 07:15 抵達瑞穗',
   '402 普悠瑪 · 08:58 抵達瑞穗',
   '406 自強 (3000) · 09:51 抵達瑞穗',
@@ -2180,6 +2202,17 @@ const TRAIN_OPTIONS = [
   '438 自強 (3000) · 21:35 抵達瑞穗',
   '448 普悠瑪 · 23:12 抵達瑞穗'
 ];
+
+const trainLabel = (t) => `${t.train_no} ${t.train_type} · ${t.arrive_time} 抵達瑞穗`;
+// Loads the active timetable (sorted by arrival); keeps the built-in list if the table isn't there yet.
+async function loadTrainOptions() {
+  try {
+    const { data, error } = await supabaseClient.from('train_schedule').select('train_no, train_type, arrive_time').eq('is_active', true).order('arrive_time');
+    if (!error && data) TRAIN_OPTIONS = data.map(trainLabel);
+  } catch (e) { /* keep built-in list */ }
+  return TRAIN_OPTIONS;
+}
+
 
 function addFieldBuilderRow(prefill) {
   const id = 'fb-' + (fieldBuilderCount++);
@@ -2261,6 +2294,7 @@ async function openEventModal(eventToEdit) {
   document.getElementById('ne-error').style.display = 'none';
   document.getElementById('ne-slug').removeAttribute('data-touched');
 
+  loadTrainOptions();
   if (eventToEdit) {
     document.getElementById('ne-modal-title').textContent = '編輯活動 Edit Event';
     document.getElementById('ne-submit-btn').textContent = '儲存變更 Save';
@@ -2977,6 +3011,95 @@ function buildImportRows(table, guess, map, year) {
   });
   return out;
 }
+
+/* ---------- 火車時刻管理 ---------- */
+let trainDeleted = [];
+const trainInput = 'padding:4px 6px; border:1px solid var(--line); border-radius:6px; width:100%; box-sizing:border-box;';
+function trainRowHTML(t) {
+  t = t || {};
+  return `<tr data-id="${t.id || ''}">
+    <td><input class="tr-no" style="${trainInput} width:70px;" value="${escapeHtml(t.train_no || '')}"></td>
+    <td><input class="tr-type" style="${trainInput} width:110px;" value="${escapeHtml(t.train_type || '')}"></td>
+    <td><input class="tr-arr" type="time" style="${trainInput} width:105px;" value="${escapeHtml(t.arrive_time || '')}"></td>
+    <td><input class="tr-dep" type="time" style="${trainInput} width:105px;" value="${escapeHtml(t.depart_time || '')}"></td>
+    <td><input class="tr-route" style="${trainInput}" value="${escapeHtml(t.route || '')}"></td>
+    <td><input class="tr-note" style="${trainInput}" value="${escapeHtml(t.note || '')}"></td>
+    <td style="text-align:center;"><input class="tr-active" type="checkbox" ${t.is_active === false ? '' : 'checked'}></td>
+    <td><button type="button" class="btn-text" style="color:var(--red);" data-train-del>刪除</button></td>
+  </tr>`;
+}
+async function openTrainManager() {
+  const msg = document.getElementById('train-msg'); msg.textContent = '載入中…'; msg.style.color = '';
+  document.getElementById('train-modal').classList.add('show');
+  trainDeleted = [];
+  const { data, error } = await supabaseClient.from('train_schedule').select('*').order('arrive_time');
+  if (error) { msg.style.color = '#B91C1C'; msg.textContent = '讀取失敗：' + error.message + '（是否已執行 SQL/51-train-schedule.sql？）'; document.getElementById('train-rows').innerHTML = ''; return; }
+  document.getElementById('train-rows').innerHTML = (data || []).map(trainRowHTML).join('');
+  msg.textContent = '';
+}
+document.getElementById('manage-trains-btn').addEventListener('click', openTrainManager);
+document.getElementById('train-close-btn').addEventListener('click', () => document.getElementById('train-modal').classList.remove('show'));
+document.getElementById('train-add-btn').addEventListener('click', () => {
+  document.getElementById('train-rows').insertAdjacentHTML('beforeend', trainRowHTML({}));
+  const rows = document.querySelectorAll('#train-rows tr'); rows[rows.length - 1].querySelector('.tr-no').focus();
+});
+document.getElementById('train-rows').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-train-del]'); if (!b) return;
+  const tr = b.closest('tr');
+  if (tr.dataset.id) trainDeleted.push(tr.dataset.id);
+  tr.remove();
+});
+const trainNorm = (v) => { const m = String(v || '').match(/^(\d{1,2}):(\d{2})/); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
+document.getElementById('train-save-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('train-msg');
+  const rows = Array.from(document.querySelectorAll('#train-rows tr')).map(tr => ({
+    id: tr.dataset.id || null,
+    train_no: tr.querySelector('.tr-no').value.trim(),
+    train_type: tr.querySelector('.tr-type').value.trim(),
+    arrive_time: trainNorm(tr.querySelector('.tr-arr').value),
+    depart_time: trainNorm(tr.querySelector('.tr-dep').value) || null,
+    route: tr.querySelector('.tr-route').value.trim() || null,
+    note: tr.querySelector('.tr-note').value.trim() || null,
+    is_active: tr.querySelector('.tr-active').checked,
+  }));
+  msg.style.color = '#B91C1C';
+  const bad = rows.findIndex(r => !r.train_no || !r.train_type || !r.arrive_time);
+  if (bad >= 0) { msg.textContent = '第 ' + (bad + 1) + ' 列：車次、車種、抵達時間都要填。'; return; }
+  const dup = rows.find((r, i) => rows.findIndex(x => x.train_no === r.train_no) !== i);
+  if (dup) { msg.textContent = '車次「' + dup.train_no + '」重複了。'; return; }
+  const btn = document.getElementById('train-save-btn'); btn.disabled = true; btn.textContent = '儲存中…';
+  try {
+    if (trainDeleted.length) { const { error } = await supabaseClient.from('train_schedule').delete().in('id', trainDeleted); if (error) throw error; }
+    const old = rows.filter(r => r.id), fresh = rows.filter(r => !r.id).map(({ id, ...r }) => r);
+    if (old.length) { const { error } = await supabaseClient.from('train_schedule').upsert(old, { onConflict: 'id' }); if (error) throw error; }
+    if (fresh.length) { const { error } = await supabaseClient.from('train_schedule').insert(fresh); if (error) throw error; }
+    await openTrainManager();
+    await loadTrainOptions();
+    msg.style.color = '#067A37'; msg.textContent = '已儲存。新建立的活動會用新時刻表；既有活動請按「同步到進行中的活動」。';
+  } catch (err) {
+    msg.style.color = '#B91C1C'; msg.textContent = '儲存失敗：' + (err.message || err);
+  } finally { btn.disabled = false; btn.textContent = '儲存'; }
+});
+document.getElementById('train-sync-btn').addEventListener('click', async () => {
+  const msg = document.getElementById('train-msg'); msg.style.color = '#B91C1C';
+  try {
+    const opts = await loadTrainOptions();
+    if (opts.length === 0) { msg.textContent = '目前沒有啟用的班次，不同步。'; return; }
+    const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    const { data, error } = await supabaseClient.from('events').select('id, name, form_schema, event_date, is_active');
+    if (error) throw error;
+    const targets = (data || []).filter(ev => ev.is_active !== false && (!ev.event_date || ev.event_date >= today)
+      && (ev.form_schema || []).some(f => f.type === 'train'));
+    if (targets.length === 0) { msg.style.color = ''; msg.textContent = '沒有進行中且含「火車車次」欄位的活動。'; return; }
+    if (!confirm('要把新時刻表同步到這 ' + targets.length + ' 個活動嗎？\n' + targets.map(t => '・' + t.name).join('\n') + '\n\n已報名者的答案不會被改。')) return;
+    for (const ev of targets) {
+      const schema = ev.form_schema.map(f => f.type === 'train' ? { ...f, options: opts.slice() } : f);
+      const { error: e2 } = await supabaseClient.from('events').update({ form_schema: schema }).eq('id', ev.id);
+      if (e2) throw e2;
+    }
+    msg.style.color = '#067A37'; msg.textContent = '已同步 ' + targets.length + ' 個活動。';
+  } catch (err) { msg.textContent = '同步失敗：' + (err.message || err); }
+});
 
 /* ---------- 行事曆 Calendar (Dashboard) ---------- */
 
