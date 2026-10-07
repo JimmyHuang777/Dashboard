@@ -352,14 +352,14 @@
   .ccal-day.sun .n { color:#DC2626; }
   .ccal-day .n { font-weight:700; display:block; margin-bottom:2px; }
   .ccal-chip { display:block; font-size:11px; line-height:1.3; border-radius:4px; padding:1px 4px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; background:#06C755; }
-  .ccal-chip.event { background:#F97316; } .ccal-chip.task { background:#7C3AED; } .ccal-chip.saint { background:#B45309; }
+  .ccal-chip.event { background:#F97316; } .ccal-chip.task { background:#7C3AED; } .ccal-chip.saint { background:#B45309; } .ccal-chip.lunar { background:#0E7490; }
   .ccal-item { border:1px solid var(--line); border-left:5px solid #06C755; border-radius:8px; padding:8px 10px; margin-bottom:6px; display:flex; gap:8px; align-items:flex-start; }
-  .ccal-item.event { border-left-color:#F97316; } .ccal-item.task { border-left-color:#7C3AED; } .ccal-item.saint { border-left-color:#B45309; }
+  .ccal-item.event { border-left-color:#F97316; } .ccal-item.task { border-left-color:#7C3AED; } .ccal-item.saint { border-left-color:#B45309; } .ccal-item.lunar { border-left-color:#0E7490; }
   .ccal-item .body { flex:1; min-width:0; }
   .ccal-item .t { font-weight:700; font-size:14px; }
   .ccal-item .s { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
   .ccal-kind { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; margin-right:6px; background:#E7F8EE; color:#067A37; }
-  .ccal-kind.event { background:#FFEDD5; color:#C2410C; } .ccal-kind.task { background:#EDE9FE; color:#6D28D9; } .ccal-kind.saint { background:#FEF3C7; color:#92400E; }
+  .ccal-kind.event { background:#FFEDD5; color:#C2410C; } .ccal-kind.task { background:#EDE9FE; color:#6D28D9; } .ccal-kind.saint { background:#FEF3C7; color:#92400E; } .ccal-kind.lunar { background:#CFFAFE; color:#155E75; }
   .ci-table th, .ci-table td { padding:5px 8px; font-size:13px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   .ci-table tr.dup td, .ci-table tr.bad td { color:var(--ink-soft); background:#FAFAFA; }
   .ci-tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
@@ -1076,6 +1076,7 @@
       <div style="display:flex; gap:16px; margin-bottom:8px; font-size:13.5px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-entry" checked><span style="width:10px;height:10px;border-radius:3px;background:#06C755;display:inline-block;"></span>行事曆</label>
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-saint" checked><span style="width:10px;height:10px;border-radius:3px;background:#B45309;display:inline-block;"></span>仙佛紀念日</label>
+        <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-lunar" checked><span style="width:10px;height:10px;border-radius:3px;background:#0E7490;display:inline-block;"></span>農曆初一十五</label>
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-event" checked><span style="width:10px;height:10px;border-radius:3px;background:#F97316;display:inline-block;"></span>報名</label>
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-task"><span style="width:10px;height:10px;border-radius:3px;background:#7C3AED;display:inline-block;"></span>工作</label>
       </div>
@@ -3272,7 +3273,7 @@ const CI_HEAD_SAINT = {
 const CI_HEAD = {
   month: /^(月|月\s*份)$/,
   date:  /^(日\s*期|日|Date)/i,
-  item:  /(項\s*目|活\s*動|內\s*容|事\s*項|行\s*程|名\s*稱|課\s*程|班\s*程|主\s*題)/,
+  item:  /(項\s*目|活\s*動|內\s*容|事\s*項|行\s*程|名\s*稱|課\s*程|班\s*程|班\s*別|主\s*題)/,
   time:  /(時\s*間|Time)/i,
   place: /(地\s*點|場\s*地|地\s*址)/,
   notes: /(備\s*註|說\s*明|其\s*他)/,
@@ -3287,6 +3288,49 @@ function ciMonthTitle(row) {
 }
 
 // Decide header row + which column means what.
+// 左右並排的表格（例：「月 日 星期 班別 ｜ 月 日 星期 班別」，左半年＋右半年）：
+// 把右半邊接在左半邊後面，變成一般的單欄表格再解析。
+function ciUnfoldSideBySide(table) {
+  const rows = table.rows;
+  for (let i = 0; i < Math.min(3, rows.length); i++) {
+    const h = rows[i].map(c => ciNormalize(c).trim());
+    const w = h.length;
+    if (w < 4 || w % 2) continue;
+    const L = h.slice(0, w / 2), R = h.slice(w / 2);
+    if (L.every(Boolean) && L.every((c, k) => c === R[k]) && L.some(c => !/\d/.test(c) && Object.values(CI_HEAD).some(re => re.test(c)))) {
+      const half = w / 2, pick = (r, a) => r.slice(a, a + half);
+      const left = rows.slice(i + 1).map(r => pick(r, 0));
+      const right = rows.slice(i + 1).map(r => pick(r, half)).filter(r => r.some(c => (c || '').trim()));
+      return Object.assign({}, table, { rows: [...rows.slice(0, i), pick(rows[i], 0), ...left, ...right], unfolded: true });
+    }
+  }
+  return table;
+}
+
+// 用「星期」欄推斷年份：表頭有 月／日／星期 時，挑出星期對得上最多的年份（±3 年內）。
+function ciInferYearByWeekday(tables, year) {
+  const WD = '日一二三四五六';
+  const samples = [];
+  tables.forEach(t => {
+    const hi = t.rows.findIndex((r, i) => i < 3 && r.some(c => ciNormalize(c).trim() === '星期'));
+    if (hi < 0) return;
+    const h = t.rows[hi].map(c => ciNormalize(c).trim());
+    const mi = h.indexOf('月'), di = h.indexOf('日'), wi = h.indexOf('星期');
+    if (mi < 0 || di < 0 || wi < 0) return;
+    t.rows.slice(hi + 1).forEach(r => {
+      const m = parseInt(r[mi], 10), d = parseInt(r[di], 10), w = WD.indexOf((r[wi] || '').trim().slice(-1));
+      if (m >= 1 && m <= 12 && d >= 1 && d <= 31 && w >= 0) samples.push([m, d, w]);
+    });
+  });
+  if (samples.length < 5) return null;
+  const score = (y) => samples.filter(([m, d, w]) => { const dt = new Date(y, m - 1, d); return dt.getMonth() === m - 1 && dt.getDay() === w; }).length / samples.length;
+  const cur = score(year);
+  if (cur >= 0.9) return null;
+  let best = year, bestScore = cur;
+  for (let y = year - 3; y <= year + 3; y++) { const sc = score(y); if (sc > bestScore) { best = y; bestScore = sc; } }
+  return best !== year && bestScore >= 0.9 ? best : null;
+}
+
 function guessTable(table, year, dest) {
   const HEAD = dest === 'saint' ? CI_HEAD_SAINT : CI_HEAD;
   const rows = table.rows;
@@ -3351,6 +3395,18 @@ function buildImportRows(table, guess, map, year) {
     if (!d && map.time >= 0 && lunarParse(cell('time'))) {          // 只有農曆日期時，自動換算成國曆
       const iso = lunarToSolar(cell('time'), year);
       if (iso) d = { start: iso, end: null };
+    }
+    // 標題開頭的「M/D-D」連續日期（例：7/4-5、2/21-22）：這列在最後一天或第一天時，補成起訖日。
+    if (d && d.start && !d.end && title) {
+      const rg = title.match(/^(\d{1,2})\/(\d{1,2})\s*[-–~～]\s*(\d{1,2})(?![\d\/])/);
+      if (rg) {
+        const [, rm, sd, ed] = rg.map(Number), [yy, dm, dd] = d.start.split('-').map(Number);
+        const iso = (day) => yy + '-' + String(rm).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        if (rm === dm && sd < ed) {
+          if (dd === ed) d = { start: iso(sd), end: iso(ed) };
+          else if (dd === sd) d = { start: iso(sd), end: iso(ed) };
+        }
+      }
     }
     let carried = false;
     if (!d && !dateText && prev) { d = prev; carried = true; }   // blank date → same day as the row above
@@ -3578,8 +3634,27 @@ document.getElementById('saint-save-btn').addEventListener('click', async () => 
 
 /* ---------- 行事曆 Calendar (Dashboard) ---------- */
 
-const CAL_KIND = { entry: '行事曆', saint: '仙佛紀念日', event: '報名', task: '工作' };
-let ccalFilters = { entry: true, saint: true, event: true, task: false };
+
+const LUNAR_DAY_FMT = (() => { try { return new Intl.DateTimeFormat('en-US-u-ca-chinese', { timeZone: 'UTC', month: 'numeric', day: 'numeric' }); } catch (e) { return null; } })();
+const LUNAR_MONTH_NAME = ['正', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+// 國曆某月內的農曆初一、十五（瀏覽器內建中國曆計算，不需資料庫）→ [{ date, title }]
+function lunarMarkers(y, m) {
+  if (!LUNAR_DAY_FMT) return [];
+  const out = [], days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  for (let d = 1; d <= days; d++) {
+    const dt = new Date(Date.UTC(y, m - 1, d, 12));
+    const p = {}; LUNAR_DAY_FMT.formatToParts(dt).forEach(x => { p[x.type] = x.value; });
+    const day = parseInt(p.day, 10);
+    if (day !== 1 && day !== 15) continue;
+    const mo = parseInt(p.month, 10);
+    if (!(mo >= 1 && mo <= 12)) continue;
+    out.push({ date: y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'), title: (/bis/.test(p.month) ? '閏' : '') + LUNAR_MONTH_NAME[mo - 1] + '月' + (day === 1 ? '初一' : '十五') });
+  }
+  return out;
+}
+
+const CAL_KIND = { entry: '行事曆', saint: '仙佛紀念日', lunar: '農曆', event: '報名', task: '工作' };
+let ccalFilters = { entry: true, saint: true, lunar: true, event: true, task: false };
 try { Object.assign(ccalFilters, JSON.parse(localStorage.getItem('ccalFilters') || '{}')); } catch (e) {}
 let ccalY, ccalM, ccalItems = [], ccalSel = null;
 const cpad = (n) => String(n).padStart(2, '0');
@@ -3601,6 +3676,7 @@ async function loadCcal() {
   (en.data || []).forEach(e => items.push({ kind: e.category === 'saint' ? 'saint' : 'entry', lunar: e.lunar_text, kowtow: e.kowtow, id: e.id, date: e.entry_date, end: e.end_date, title: e.title, time: e.time_text, place: e.place, notes: e.notes, raw: e }));
   (ev.data || []).forEach(e => items.push({ kind: 'event', id: e.id, date: e.event_date, title: e.name + (e.is_active === false ? '（已停用）' : ''), place: e.location }));
   (tk.data || []).filter(i => i.task_templates && i.task_templates.is_active !== false).forEach(i => items.push({ kind: 'task', id: i.template_id, date: i.occurrence_date, title: i.task_templates.title, place: i.task_templates.place }));
+  lunarMarkers(ccalY, ccalM).forEach(x => items.push({ kind: 'lunar', id: null, date: x.date, title: x.title }));
   items.sort((a, b) => a.date.localeCompare(b.date));
   ccalItems = items;
   renderCcal();
@@ -3657,14 +3733,14 @@ function ccalShift(delta) {
   loadCcal();
 }
 
-['entry', 'saint', 'event', 'task'].forEach(k => document.getElementById('ccal-f-' + k).addEventListener('change', (e) => {
+['entry', 'saint', 'lunar', 'event', 'task'].forEach(k => document.getElementById('ccal-f-' + k).addEventListener('change', (e) => {
   ccalFilters[k] = e.target.checked;
   try { localStorage.setItem('ccalFilters', JSON.stringify(ccalFilters)); } catch (err) {}
   if (k === 'task' && e.target.checked) loadCcal(); else renderCcal();
 }));
 
 document.getElementById('manage-calendar-btn').addEventListener('click', () => {
-  ['entry', 'saint', 'event', 'task'].forEach(k => { document.getElementById('ccal-f-' + k).checked = !!ccalFilters[k]; });
+  ['entry', 'saint', 'lunar', 'event', 'task'].forEach(k => { document.getElementById('ccal-f-' + k).checked = !!ccalFilters[k]; });
   const t = ctoday(); ccalY = +t.slice(0, 4); ccalM = +t.slice(5, 7); ccalSel = null;
   document.getElementById('cal-modal').classList.add('show');
   loadCcal();
@@ -3753,7 +3829,11 @@ document.getElementById('ci-read-btn').addEventListener('click', async () => {
     if (!docFile) throw new Error('這不是有效的 .docx 檔（舊版 .doc 請先另存為 .docx）。');
     const tables = docxTablesFromXml(await docFile.async('string'), DOMParser);
     if (tables.length === 0) throw new Error('檔案裡沒有找到表格。');
-    const yearUse = /^\d{3,4}$/.test(yearTxt) ? yearTxt : String(new Date().getFullYear());
+    for (let ti = 0; ti < tables.length; ti++) tables[ti] = ciUnfoldSideBySide(tables[ti]);
+    let yearUse = /^\d{3,4}$/.test(yearTxt) ? yearTxt : String(new Date().getFullYear());
+    // 星期欄與所填年份對不上時，自動改用對得上的年份
+    const inferred = ciInferYearByWeekday(tables, ciYear(yearUse));
+    if (inferred) yearUse = String(inferred);
     const year = ciYear(yearUse);
     ciState = {
       fileName: file.name, year: yearUse,
@@ -3762,7 +3842,7 @@ document.getElementById('ci-read-btn').addEventListener('click', async () => {
       cur: 0, dup: new Set(),
     };
     document.getElementById('ci-year2').value = yearUse;
-    document.getElementById('ci-result').textContent = '';
+    document.getElementById('ci-result').textContent = inferred ? '※ 依「星期」欄判斷年份為 ' + inferred + '，與所填年份不同，已自動改用（可在上方年份欄修改）。' : '';
     document.getElementById('ci-step1').style.display = 'none';
     document.getElementById('ci-step2').style.display = 'block';
     await ciRefreshDup();
