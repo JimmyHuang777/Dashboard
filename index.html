@@ -283,7 +283,9 @@
   .section-builder-row input { flex: 1; font-size: 16px; font-weight: 800; color: #067A37; }
   .section-builder-row .sec-add-btn { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; height: 36px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
   .subtask-status-section { font-size: 14px; font-weight: 800; color: #067A37; background: #E7F8EE; border-left: 3px solid #06C755; border-radius: 4px; margin-top: 8px; padding: 3px 8px; }
-  .subtask-builder-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .subtask-builder-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .subtask-builder-row .sb-extra { flex: 1 1 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .subtask-builder-row .sb-extra input { min-width: 0; padding: 5px 8px; font-size: 12.5px; }
   .subtask-builder-row input {
     flex: 1; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 6px;
     font-size: 13px; font-family: inherit; background: var(--paper);
@@ -1146,7 +1148,7 @@
 
   <div class="modal-overlay" id="wr-modal" style="z-index:330;">
     <div class="modal-box" style="max-width: 980px; width: 96vw;">
-      <h2>匯入 Word 工作細則</h2>
+      <h2>匯入 Word 工作細則／工作檢核表</h2>
       <div id="wr-step1">
         <p class="modal-sub">上傳工作細則 .docx（表格含「時間／項目／地點」）。會轉成「已存範本」：時間段（事前準備、事中執行⋯）變成分區，每一列變成一個子項目；負責人員不匯入。之後新增工作時，用「套用已存範本」即可帶入。</p>
         <div class="modal-field"><label>Word 檔案 (.docx)</label><input type="file" id="wr-file" accept=".docx"></div>
@@ -1157,7 +1159,7 @@
         </div>
       </div>
       <div id="wr-step2" style="display:none;">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+        <div id="wr-namebox" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
           <div class="modal-field" style="margin:0;"><label>範本名稱</label><input type="text" id="wr-name"></div>
           <div class="modal-field" style="margin:0;"><label>工作名稱（套用後帶入）</label><input type="text" id="wr-title"></div>
         </div>
@@ -4127,6 +4129,162 @@ function wrBuildRows(table, guess, map) {
   return out;
 }
 
+/* ---------- 工作檢核表（時間／工作組／工作細則／負責人／檢核人）→ 多份工作範本 ---------- */
+const WC_PHASE_RE = /(事前|事中|事後|每日|每周|每週|每月)\s*工作檢核表/;
+const WC_HEAD = [
+  ['time', /時\s*間/], ['section', /(工作組|組\s*別)/], ['place', /(地\s*點|場\s*地)/],
+  ['item', /(工作細則|工作項目|項\s*目)/], ['owner', /負\s*責/], ['checker', /檢\s*核/],
+];
+function wcMapHeader(row) {
+  const map = { time: -1, section: -1, place: -1, item: -1, owner: -1, checker: -1 };
+  row.forEach((c, i) => {
+    const t = ciNormalize(c).replace(/\s+/g, '');
+    if (!t) return;
+    for (const [k, re] of WC_HEAD) if (map[k] < 0 && re.test(t)) { map[k] = i; break; }
+  });
+  return map;
+}
+// 這份 Word 是檢核表嗎？（至少一個表格有「工作細則/項目」與「檢核人」欄）
+function wcIsChecklist(tables) {
+  return tables.some(t => t.rows.length && (() => { const m = wcMapHeader(t.rows[0]); return m.item >= 0 && m.checker >= 0; })());
+}
+// "☐  煮水… / ☐ 確認…" 或 "標題 / 1.xxx / 2.xxx" → 單行文字
+function wcCleanCell(text) {
+  const segs = String(text || '').split(/\s*\/\s*/).map(x => x.replace(/^[\s☐□☑✓✔]+/, '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return segs;
+}
+function wcItemText(text) {
+  const raw = String(text || '');
+  const segs = wcCleanCell(raw);
+  if (!segs.length) return '';
+  if (segs.length === 1) return segs[0];
+  const firstRaw = raw.split(/\s*\/\s*/)[0].trim();
+  const headIsBullet = /^[☐□☑✓✔]/.test(firstRaw) || /^\d+\s*[.．、)）]/.test(firstRaw);
+  if (headIsBullet) return segs.join('　');
+  const head = segs[0];
+  const secondRaw = (raw.split(/\s*\/\s*/)[1] || '').trim();
+  const secondIsBullet = /^[☐□☑✓✔]/.test(secondRaw) || /^\d+\s*[.．、)）]/.test(secondRaw);
+  if (!secondIsBullet && !/[:：]$/.test(head)) return segs.join('');          // Word 裡只是同一句換行
+  if (/[:：]$/.test(head)) return segs.join('　');
+  return head + '：' + segs.slice(1).join('　');
+}
+function wcJoinCell(text) { return wcCleanCell(text).join('　'); }
+
+function wcBuild(tables, fileName) {
+  const presets = [];
+  let docName = '';
+  tables.forEach((tb, ti) => {
+    const ctx = String(tb.context || '').replace(/\s+/g, ' ');
+    const found = ctx.match(/\S*工作檢核表/g) || [];
+    const cand = found.filter(m => !/^(事前|事中|事後|每日|每周|每週|每月)工作檢核表$/.test(m)).map(m => m.replace(/^.*[-－–—]/, ''));
+    if (cand.length) docName = cand[cand.length - 1];
+    const pm = ctx.match(WC_PHASE_RE);
+    const phase = pm ? pm[1].replace('週', '周') : '';
+    if (!tb.rows.length) return;
+    const map = wcMapHeader(tb.rows[0]);
+    if (map.item < 0) return;
+    const rows = [];
+    let lastTime = '';
+    tb.rows.slice(1).forEach(r => {
+      const cells = r.map(c => String(c || '').trim());
+      const filled = cells.filter(Boolean);
+      if (!filled.length) return;
+      if (filled.length >= 2 && new Set(filled).size === 1) { lastTime = ''; return; }      // 「用膳及午休時間」整列合併（其後的時間不再沿用前面的）
+      const title = wcItemText(r[map.item]);
+      if (!title) return;
+      let time = map.time >= 0 ? wcJoinCell(r[map.time]) : '';
+      if (map.time >= 0) { if (time) lastTime = time; else time = lastTime; }
+      rows.push({
+        checked: true, slots: 1, title,
+        time_label: time,
+        section: map.section >= 0 ? wcJoinCell(r[map.section]) : '',
+        place: map.place >= 0 ? wcJoinCell(r[map.place]) : '',
+        owner_note: map.owner >= 0 ? wcJoinCell(r[map.owner]) : '',
+        checker: map.checker >= 0 ? wcJoinCell(r[map.checker]) : '',
+      });
+    });
+    if (!rows.length) return;      // 空白表格（例如每月）不建立範本
+    const base = (docName || fileName.replace(/\.docx$/i, '')) ;
+    const name = phase ? base + '｜' + phase : base + '｜表格' + (ti + 1);
+    presets.push({ checked: true, name, title: name, rows });
+  });
+  return presets;
+}
+
+function wcRender() {
+  const st = wrState;
+  const list = document.getElementById('wr-map');
+  list.style.display = 'block';
+  list.innerHTML = '<div style="font-weight:800; margin-bottom:6px;">偵測到 ' + st.presets.length + ' 份工作範本（每個表格一份，空白表格已略過）</div>' +
+    st.presets.map((p, i) => `<label style="display:flex; gap:8px; align-items:center; margin-bottom:4px; padding:4px 6px; border-radius:6px; ${i === st.cur ? 'background:#E7F8EE;' : ''}">` +
+      `<input type="checkbox" data-wc-chk="${i}" ${p.checked ? 'checked' : ''}>` +
+      `<input type="text" data-wc-name="${i}" value="${escapeHtml(p.name)}" style="flex:1; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:13px;">` +
+      `<span style="font-size:12px; color:var(--ink-soft); white-space:nowrap;">${p.rows.filter(r => r.checked).length}/${p.rows.length} 項</span>` +
+      `<button type="button" class="btn-cancel" data-wc-view="${i}" style="padding:2px 10px;">預覽</button></label>`).join('');
+  const p = st.presets[st.cur];
+  const inp = (k, i, v, w, ph) => `<input type="text" data-wc-f="${k}" data-wc-i="${i}" value="${escapeHtml(v || '')}" placeholder="${ph || ''}" style="width:${w}; padding:3px 5px; border:1px solid var(--line); border-radius:5px; font-size:12.5px;">`;
+  document.getElementById('wr-preview').innerHTML = '<table class="ci-table" style="width:100%; border-collapse:collapse;"><thead><tr><th></th><th>時間</th><th>分區（工作組）</th><th>地點</th><th>項目</th><th>負責人</th><th>檢核人</th><th>人數</th></tr></thead><tbody>' +
+    p.rows.map((r, i) => `<tr><td><input type="checkbox" data-wc-rchk="${i}" ${r.checked ? 'checked' : ''}></td>` +
+      `<td>${inp('time_label', i, r.time_label, '84px')}</td><td>${inp('section', i, r.section, '84px')}</td><td>${inp('place', i, r.place, '84px')}</td>` +
+      `<td>${inp('title', i, r.title, '100%')}</td><td>${inp('owner_note', i, r.owner_note, '90px')}</td><td>${inp('checker', i, r.checker, '84px')}</td>` +
+      `<td><input type="number" min="1" max="50" data-wc-f="slots" data-wc-i="${i}" value="${r.slots}" style="width:44px; padding:3px; border:1px solid var(--line); border-radius:5px; text-align:center;"></td></tr>`).join('') +
+    '</tbody></table>';
+  const total = st.presets.filter(x => x.checked).length;
+  document.getElementById('wr-summary').textContent = `目前預覽：「${p.name}」。勾選 ${total} 份範本將一次存入「已存範本」；每個子項目都帶有時間／地點／負責人／檢核人。`;
+  document.getElementById('wr-save-btn').disabled = total === 0;
+  document.getElementById('wr-save-btn').textContent = '全部存為範本（' + total + ' 份）';
+}
+
+document.getElementById('wr-map').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-wc-view]'); if (!b || !wrState || wrState.mode !== 'checklist') return;
+  wrState.cur = +b.dataset.wcView; wcRender();
+});
+document.getElementById('wr-map').addEventListener('input', (e) => {
+  const t = e.target; if (t.dataset.wcName === undefined || !wrState || wrState.mode !== 'checklist') return;
+  const p = wrState.presets[+t.dataset.wcName]; p.name = t.value; p.title = t.value;
+});
+document.getElementById('wr-map').addEventListener('change', (e) => {
+  const t = e.target; if (t.dataset.wcChk === undefined || !wrState || wrState.mode !== 'checklist') return;
+  wrState.presets[+t.dataset.wcChk].checked = t.checked; wcRender();
+});
+document.getElementById('wr-preview').addEventListener('input', (e) => {
+  const t = e.target; if (t.dataset.wcF === undefined || !wrState || wrState.mode !== 'checklist') return;
+  const r = wrState.presets[wrState.cur].rows[+t.dataset.wcI];
+  r[t.dataset.wcF] = t.dataset.wcF === 'slots' ? Math.max(1, Math.min(50, parseInt(t.value, 10) || 1)) : t.value;
+});
+document.getElementById('wr-preview').addEventListener('change', (e) => {
+  const t = e.target; if (t.dataset.wcRchk === undefined || !wrState || wrState.mode !== 'checklist') return;
+  wrState.presets[wrState.cur].rows[+t.dataset.wcRchk].checked = t.checked; wcRender();
+});
+
+async function wcSave() {
+  const st = wrState, resEl = document.getElementById('wr-result');
+  const picks = st.presets.filter(p => p.checked && p.name.trim() && p.rows.some(r => r.checked && r.title.trim()));
+  if (!picks.length) { resEl.style.color = '#B91C1C'; resEl.textContent = '沒有可儲存的範本。'; return; }
+  const names = picks.map(p => p.name.trim());
+  if (new Set(names).size !== names.length) { resEl.style.color = '#B91C1C'; resEl.textContent = '範本名稱不可重複，請修改。'; return; }
+  const { data: exist } = await supabaseClient.from('task_job_presets').select('id, name').in('name', names);
+  const exMap = new Map((exist || []).map(x => [x.name, x.id]));
+  if (exMap.size && !confirm('以下範本已存在，要覆蓋嗎？\n\n' + [...exMap.keys()].join('\n'))) return;
+  let ok = 0, fail = '';
+  for (const p of picks) {
+    const subtasks = p.rows.filter(r => r.checked && r.title.trim()).map(r => ({
+      title: r.title.trim(), section: r.section.trim() || null, slots: r.slots,
+      time_label: r.time_label.trim() || null, place: r.place.trim() || null,
+      owner_note: r.owner_note.trim() || null, checker: r.checker.trim() || null,
+    }));
+    const payload = { name: p.name.trim(), title: p.title.trim() || p.name.trim(), description: null, place: null, start_date: null, end_date: null, subtasks, group_ids: [] };
+    const id = exMap.get(payload.name);
+    const { error } = id ? await supabaseClient.from('task_job_presets').update(payload).eq('id', id) : await supabaseClient.from('task_job_presets').insert(payload);
+    if (error) { fail = payload.name + '：' + error.message; break; }
+    ok++;
+  }
+  if (fail) { resEl.style.color = '#B91C1C'; resEl.textContent = `已存 ${ok} 份，之後失敗：${fail}`; return; }
+  resEl.style.color = '#067A37';
+  resEl.textContent = `已存 ${ok} 份範本。新增工作時用「套用已存範本」即可帶入（子項目含時間／地點／負責人／檢核人）。`;
+  if (typeof loadJobPresets === 'function') loadJobPresets();
+}
+
 document.getElementById('import-work-rules-btn').addEventListener('click', () => {
   document.getElementById('wr-step1').style.display = 'block';
   document.getElementById('wr-step2').style.display = 'none';
@@ -4148,9 +4306,20 @@ document.getElementById('wr-read-btn').addEventListener('click', async () => {
     if (!docFile) throw new Error('這不是有效的 .docx 檔（舊版 .doc 請先另存為 .docx）。');
     const tables = docxTablesFromXml(await docFile.async('string'), DOMParser);
     if (tables.length === 0) throw new Error('檔案裡沒有找到表格。');
-    wrState = { fileName: file.name, tables, cur: 0 };
-    wrSelectTable(0);
     document.getElementById('wr-result').textContent = '';
+    if (wcIsChecklist(tables)) {
+      const presets = wcBuild(tables, file.name);
+      if (!presets.length) throw new Error('表格裡沒有可匯入的項目（全是空白列）。');
+      wrState = { fileName: file.name, tables, mode: 'checklist', presets, cur: 0 };
+      document.getElementById('wr-namebox').style.display = 'none';
+      wcRender();
+    } else {
+      wrState = { fileName: file.name, tables, cur: 0 };
+      document.getElementById('wr-namebox').style.display = 'grid';
+      document.getElementById('wr-map').style.display = 'flex';
+      document.getElementById('wr-save-btn').textContent = '存為範本';
+      wrSelectTable(0);
+    }
     document.getElementById('wr-step1').style.display = 'none';
     document.getElementById('wr-step2').style.display = 'block';
   } catch (err) {
@@ -4217,6 +4386,7 @@ document.getElementById('wr-preview').addEventListener('change', (e) => {
 });
 
 document.getElementById('wr-save-btn').addEventListener('click', async () => {
+  if (wrState && wrState.mode === 'checklist') return wcSave();
   const st = wrState;
   const name = document.getElementById('wr-name').value.trim();
   const title = document.getElementById('wr-title').value.trim();
@@ -6118,6 +6288,12 @@ function addSubtaskBuilderRow(prefill, afterEl) {
     <input type="text" class="sb-title" placeholder="例：關閉電燈" value="${prefill ? escapeHtml(prefill.title || '') : ''}">
     <span class="sb-slots-wrap" title="這個子項目需要幾位負責人"><input type="number" class="sb-slots" min="1" max="50" value="${prefill && prefill.slots ? prefill.slots : 1}">人</span>
     <button type="button" class="remove-field-btn">✕</button>
+    <div class="sb-extra">
+      <input type="text" class="sb-time" placeholder="時間（例：一周前、07:00）" value="${prefill ? escapeHtml(prefill.time_label || '') : ''}">
+      <input type="text" class="sb-place" placeholder="地點" value="${prefill ? escapeHtml(prefill.place || '') : ''}">
+      <input type="text" class="sb-owner" placeholder="負責人" value="${prefill ? escapeHtml(prefill.owner_note || '') : ''}">
+      <input type="text" class="sb-checker" placeholder="檢核人" value="${prefill ? escapeHtml(prefill.checker || '') : ''}">
+    </div>
   `;
   const list = document.getElementById('subtask-builder-list');
   if (afterEl) afterEl.insertAdjacentElement('afterend', wrap); else list.appendChild(wrap);
@@ -6153,6 +6329,15 @@ function refreshSubtaskIndent() {
   });
 }
 
+function subtaskMetaHTML(s) {
+  const bits = [];
+  if (s.time_label) bits.push('🕒 ' + escapeHtml(s.time_label));
+  if (s.place) bits.push('📍 ' + escapeHtml(s.place));
+  if (s.owner_note) bits.push('負責：' + escapeHtml(s.owner_note));
+  if (s.checker) bits.push('檢核：' + escapeHtml(s.checker));
+  return bits.length ? '<small style="display:block; font-weight:400; font-size:11.5px; color:var(--ink-soft);">' + bits.join('　') + '</small>' : '';
+}
+
 function renderSubtaskBuilder(subs) {
   document.getElementById('subtask-builder-list').innerHTML = '';
   let current;
@@ -6173,7 +6358,7 @@ function collectSubtaskBuilder() {
       section = el.querySelector('.sec-title').value.trim() || null;
     } else {
       const title = el.querySelector('.sb-title').value.trim();
-      if (title) out.push({ id: el.dataset.subtaskId || null, title, section, slots: Math.max(1, Math.min(50, parseInt(el.querySelector('.sb-slots').value, 10) || 1)) });
+      if (title) out.push({ id: el.dataset.subtaskId || null, title, section, slots: Math.max(1, Math.min(50, parseInt(el.querySelector('.sb-slots').value, 10) || 1)), time_label: el.querySelector('.sb-time').value.trim() || null, place: el.querySelector('.sb-place').value.trim() || null, owner_note: el.querySelector('.sb-owner').value.trim() || null, checker: el.querySelector('.sb-checker').value.trim() || null });
     }
   });
   return out;
@@ -6203,7 +6388,7 @@ async function openTemplateForm(tpl) {
   if (tpl) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, title, sort_order, section, slots')
+      .select('id, title, sort_order, section, slots, time_label, place, owner_note, checker')
       .eq('template_id', tpl.id)
       .order('sort_order', { ascending: true });
     renderSubtaskBuilder(subs || []);
@@ -6276,7 +6461,7 @@ document.getElementById('tpl-preset-apply-btn').addEventListener('click', () => 
     document.getElementById('tpl-end-date').value = preset.end_date || '';
   }
 
-  renderSubtaskBuilder((preset.subtasks || []).map(x => ({ title: x.title, section: x.section, slots: x.slots })));
+  renderSubtaskBuilder((preset.subtasks || []).map(x => ({ title: x.title, section: x.section, slots: x.slots, time_label: x.time_label, place: x.place, owner_note: x.owner_note, checker: x.checker })));
 
   const presetGroupIds = new Set((preset.group_ids || []).filter(id => allGroups.some(g => g.id === id)));
   renderTplGroupCheckboxes(presetGroupIds);
@@ -6308,7 +6493,7 @@ document.getElementById('tpl-save-preset-btn').addEventListener('click', async (
   const start_date = recurrence !== 'once' ? (document.getElementById('tpl-start-date').value || null) : null;
   const end_date = recurrence !== 'once' ? (document.getElementById('tpl-end-date').value || null) : null;
 
-  const subtasks = collectSubtaskBuilder().map(({ title, section, slots }) => ({ title, section, slots }));
+  const subtasks = collectSubtaskBuilder().map(({ title, section, slots, time_label, place, owner_note, checker }) => ({ title, section, slots, time_label, place, owner_note, checker }));
 
   const group_ids = [...document.querySelectorAll('#tpl-group-checkboxes input:checked')].map(cb => cb.value);
 
@@ -6446,9 +6631,9 @@ document.getElementById('tpl-submit-btn').addEventListener('click', async () => 
   }
   for (const row of subtaskRows) {
     if (row.id) {
-      await supabaseClient.from('task_subtask_templates').update({ title: row.title, section: row.section, slots: row.slots, sort_order: row.sort_order }).eq('id', row.id);
+      await supabaseClient.from('task_subtask_templates').update({ title: row.title, section: row.section, slots: row.slots, time_label: row.time_label, place: row.place, owner_note: row.owner_note, checker: row.checker, sort_order: row.sort_order }).eq('id', row.id);
     } else {
-      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, section: row.section, slots: row.slots, sort_order: row.sort_order });
+      await supabaseClient.from('task_subtask_templates').insert({ template_id: templateId, title: row.title, section: row.section, slots: row.slots, time_label: row.time_label, place: row.place, owner_note: row.owner_note, checker: row.checker, sort_order: row.sort_order });
     }
   }
 
@@ -6536,7 +6721,7 @@ async function loadUpcomingTasks() {
   if (templateIds.length > 0) {
     const { data: subs } = await supabaseClient
       .from('task_subtask_templates')
-      .select('id, template_id, title, sort_order, section, slots')
+      .select('id, template_id, title, sort_order, section, slots, time_label, place, owner_note, checker')
       .in('template_id', templateIds)
       .order('sort_order', { ascending: true });
     subtaskTemplates = subs || [];
@@ -6563,6 +6748,7 @@ async function loadUpcomingTasks() {
         subtask_template_id: s.id,
         title: s.title,
         section: s.section || null,
+        time_label: s.time_label || null, place: s.place || null, owner_note: s.owner_note || null, checker: s.checker || null,
         slots,
         people,
         status,
@@ -6609,7 +6795,7 @@ function subtaskStatusListHTML(t) {
       ${t.subtasks.map((s, i) => `
         ${s.section && (i === 0 || t.subtasks[i - 1].section !== s.section) ? `<div class="subtask-status-section">${escapeHtml(s.section)}</div>` : ''}
         <div class="subtask-status-row" data-subtask-id="${s.subtask_template_id}">
-          <span class="sub-title ${s.status === 'completed' ? 'done' : ''}">${escapeHtml(s.title)}</span>
+          <span class="sub-title ${s.status === 'completed' ? 'done' : ''}">${escapeHtml(s.title)}${subtaskMetaHTML(s)}</span>
           <span class="sub-count ${s.people.length >= s.slots ? 'full' : ''}" title="已指派／需要人數">${s.people.length}/${s.slots}</span>
           <span class="sub-people">
             ${s.people.map(p => `<span class="sub-person ${p.status}">${escapeHtml(p.name)}${p.status === 'completed' ? ' ✓' : `<button type="button" class="sub-unassign-btn" data-completion-id="${p.completion_id}" title="取消指派">✕</button>`}</span>`).join('')}
