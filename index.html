@@ -991,7 +991,7 @@
 
   <div class="modal-overlay" id="csv-extra-modal" style="z-index:300;">
     <div class="modal-box" style="max-width: 980px; width: 96vw;">
-      <h2>匯出 CSV 前新增欄位</h2>
+      <h2>匯出前新增欄位（CSV／PDF）</h2>
       <p class="modal-sub" id="csv-extra-sub"></p>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
         <select id="csv-tpl-select" style="padding:7px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px; min-width:180px;"><option value="">套用已存範本…</option></select>
@@ -1004,6 +1004,7 @@
       <div style="max-height:38vh; overflow:auto; border:1px solid var(--line); border-radius:8px;" id="csv-extra-preview"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="csv-extra-cancel-btn">取消</button>
+        <button type="button" class="btn-new-event" id="csv-extra-pdf-btn" style="background:#B45309;">下載 PDF</button>
         <button type="button" class="btn-new-event" id="csv-extra-download-btn" style="background:var(--accent-dark);">下載 CSV</button>
       </div>
     </div>
@@ -1864,6 +1865,7 @@ function csvExtraSave() {
 function openCsvExtraDialog(opts) { // { key, title, headers, rows, filename }
   if (!opts.rows || opts.rows.length === 0) { alert('目前沒有可匯出的資料。'); return; }
   csvExtraState = {
+    title: opts.title || '',
     key: opts.key, headers: opts.headers, rows: opts.rows, filename: opts.filename,
     cols: csvExtraLoadSaved(opts.key).map(c => ({ name: c.name || '', def: c.def || '', vals: opts.rows.map(() => c.def || ''), dirty: new Set() })),
   };
@@ -1965,20 +1967,140 @@ document.getElementById('csv-extra-preview').addEventListener('input', (e) => {
   c.vals[ri] = t.value; c.dirty.add(ri);
 });
 document.getElementById('csv-extra-cancel-btn').addEventListener('click', () => document.getElementById('csv-extra-modal').classList.remove('show'));
-document.getElementById('csv-extra-download-btn').addEventListener('click', () => {
+// Headers + rows with the user's extra columns appended (shared by CSV and PDF).
+function csvExtraBuild() {
   const st = csvExtraState;
   const cols = st.cols.filter(c => c.name.trim());
   const headers = [...st.headers, ...cols.map(c => c.name.trim())];
   const rows = st.rows.map((r, ri) => [...r, ...cols.map(c => c.vals[ri])]);
   csvExtraSave();
+  return { headers, rows };
+}
+
+document.getElementById('csv-extra-download-btn').addEventListener('click', () => {
+  const st = csvExtraState;
+  const { headers, rows } = csvExtraBuild();
   const lines = [headers, ...rows].map(row => row.map(csvEscape).join(','));
-  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = st.filename;
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
   document.getElementById('csv-extra-modal').classList.remove('show');
+});
+
+/* ---------- PDF export (same data + extra columns as the CSV) ----------
+   Chinese text can't be embedded cheaply in a PDF library, so the table is
+   rendered by the browser (its own CJK fonts), captured with html2canvas and
+   cut into A4-landscape pages at row boundaries, the header row repeated on
+   every page. Both libraries load from cdnjs only when 下載 PDF is clicked. */
+const PDF_LIBS = [
+  ['html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', () => window.html2canvas],
+  ['jsPDF', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', () => window.jspdf && window.jspdf.jsPDF],
+];
+function loadScriptOnce(url, probe) {
+  if (probe()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = url; sc.onload = () => (probe() ? resolve() : reject(new Error('載入失敗'))); sc.onerror = () => reject(new Error('無法載入 PDF 元件，請確認網路後重試'));
+    document.head.appendChild(sc);
+  });
+}
+
+async function buildPdfBlob(title, headers, rows) {
+  for (const [, url, probe] of PDF_LIBS) await loadScriptOnce(url, probe);
+  const PAGE_W_MM = 297, PAGE_H_MM = 210, MARGIN = 8, FOOT = 7;
+  const CSS_W = 1050;                                   // px that map to the printable width
+  const pxPerMm = CSS_W / (PAGE_W_MM - 2 * MARGIN);
+  const bodyH = (PAGE_H_MM - 2 * MARGIN - FOOT) * pxPerMm;   // printable height per page (css px)
+
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed; left:-20000px; top:0; width:' + CSS_W + 'px; background:#fff; color:#111; font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif;';
+  const esc = (v) => escapeHtml(v == null ? '' : String(v));
+  // Column widths ∝ longest content (CJK counts double, capped) so short
+  // columns like 姓名／性別 never get squeezed into wrapping.
+  const vlen = (v) => [...String(v == null ? '' : v)].reduce((n, ch) => n + (ch.charCodeAt(0) > 255 ? 2 : 1), 0);
+  const weights = headers.map((h, ci) => Math.max(5, Math.min(44, Math.max(vlen(h), ...rows.map(r => vlen(r[ci]))))));
+  const wsum = weights.reduce((a, b) => a + b, 0);
+  const colgroup = '<colgroup>' + weights.map(w => '<col style="width:' + (w / wsum * 100).toFixed(2) + '%">').join('') + '</colgroup>';
+  host.innerHTML =
+    '<div id="pdf-title" style="padding:2px 0 8px; font-size:17px; font-weight:700;">' + esc(title) + '<span style="font-size:12px; font-weight:400; color:#666; margin-left:12px;">共 ' + rows.length + ' 筆　' + new Date().toISOString().slice(0, 10) + '</span></div>' +
+    '<table style="width:' + CSS_W + 'px; border-collapse:collapse; font-size:12px; line-height:1.45; table-layout:fixed;">' + colgroup +
+    '<thead><tr>' + headers.map(h => '<th style="border:1px solid #999; background:#EEF1F4; padding:5px 7px; text-align:left; font-weight:700; overflow-wrap:anywhere;">' + esc(h) + '</th>').join('') + '</tr></thead>' +
+    '<tbody>' + rows.map(r => '<tr>' + r.map(c => '<td style="border:1px solid #bbb; padding:5px 7px; vertical-align:top; overflow-wrap:anywhere;">' + esc(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+  document.body.appendChild(host);
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const hostTop = host.getBoundingClientRect().top;
+    const titleH = host.querySelector('#pdf-title').getBoundingClientRect().height;
+    const thead = host.querySelector('thead');
+    const hdrTop = thead.getBoundingClientRect().top - hostTop, hdrH = thead.getBoundingClientRect().height;
+    const rowEls = [...host.querySelectorAll('tbody tr')];
+    const rowPos = rowEls.map(tr => { const b = tr.getBoundingClientRect(); return { top: b.top - hostTop, h: b.height }; });
+    const totalH = host.getBoundingClientRect().height;
+
+    // Keep the canvas inside browser limits (~16k px tall).
+    let scale = 2;
+    while (totalH * scale > 15000 && scale > 0.6) scale -= 0.2;
+    const canvas = await window.html2canvas(host, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: CSS_W });
+
+    // Group rows into pages.
+    const pages = [];
+    let cur = [], used = titleH + hdrH;
+    rowPos.forEach((p, i) => {
+      if (cur.length && used + p.h > bodyH) { pages.push(cur); cur = []; used = hdrH; }
+      cur.push(i); used += p.h;
+    });
+    if (cur.length || pages.length === 0) pages.push(cur);
+
+    const jsPDF = window.jspdf.jsPDF;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+    pages.forEach((idxs, pi) => {
+      if (pi > 0) pdf.addPage();
+      const pageCss = (pi === 0 ? titleH : 0) + hdrH + (idxs.length ? rowPos[idxs[idxs.length - 1]].top + rowPos[idxs[idxs.length - 1]].h - rowPos[idxs[0]].top : 0);
+      const pc = document.createElement('canvas');
+      pc.width = Math.round(CSS_W * scale); pc.height = Math.max(1, Math.round(pageCss * scale));
+      const ctx = pc.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pc.width, pc.height);
+      let y = 0;
+      const draw = (srcTop, srcH) => {
+        if (srcH <= 0) return;
+        ctx.drawImage(canvas, 0, Math.round(srcTop * scale), pc.width, Math.round(srcH * scale), 0, Math.round(y * scale), pc.width, Math.round(srcH * scale));
+        y += srcH;
+      };
+      if (pi === 0) draw(0, titleH);
+      draw(hdrTop, hdrH);
+      if (idxs.length) draw(rowPos[idxs[0]].top, rowPos[idxs[idxs.length - 1]].top + rowPos[idxs[idxs.length - 1]].h - rowPos[idxs[0]].top);
+      pdf.addImage(pc.toDataURL('image/png'), 'PNG', MARGIN, MARGIN, PAGE_W_MM - 2 * MARGIN, pageCss / pxPerMm, undefined, 'FAST');
+      pdf.setFontSize(8); pdf.setTextColor(120);
+      pdf.text((pi + 1) + ' / ' + pages.length, PAGE_W_MM / 2, PAGE_H_MM - 5, { align: 'center' });
+    });
+    return pdf.output('blob');
+  } finally {
+    host.remove();
+  }
+}
+
+document.getElementById('csv-extra-pdf-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('csv-extra-pdf-btn');
+  const st = csvExtraState;
+  const { headers, rows } = csvExtraBuild();
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = '產生 PDF 中…';
+  try {
+    const blob = await buildPdfBlob(st.title || '', headers, rows);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = st.filename.replace(/\.csv$/i, '') + '.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    document.getElementById('csv-extra-modal').classList.remove('show');
+  } catch (err) {
+    alert('PDF 產生失敗：' + (err && err.message ? err.message : err));
+  } finally {
+    btn.disabled = false; btn.textContent = old;
+  }
 });
 
 function exportCsv() {
@@ -5238,16 +5360,12 @@ async function runAltarTeamSearch(altar, team, query) {
         return;
       }
 
-      // 佛堂／庶務 reuse the Task system, which is gated by the
-      // single global task_job_admins list (no per-altar scoping
-      // there) — so a leader also needs to be a Job Admin to
-      // actually manage tasks. Kitchen doesn't need this: kitchen-api
-      // checks altar_team_members directly.
+      // 佛堂／庶務／住壇 組長：不再加入全域「任務管理員」名單。
+      // 組長只能管理自己壇・組的工作（tasks-admin-api 依 altar_team_members
+      // 的組長身分 + 該組群組判斷），組員／組長的可見範圍仍由下方
+      // task_group_members 同步。
       if (role === 'leader' && (team === 'shrine' || team === 'general' || team === 'resident')) {
-        const { error: jobAdminErr } = await supabaseClient.from('task_job_admins').upsert({ user_id: userId });
-        if (!jobAdminErr) {
-          alert(`已將此人加入為${TEAM_LABELS[team]}組長，並同時加入「任務管理」管理員名單。\n\n請提醒對方在「任務管理」建立工作時，選擇限定「${altar.name}・${TEAM_LABELS[team]}」群組，工作才只會顯示給這個壇的${TEAM_LABELS[team]}組員。`);
-        }
+        alert(`已將此人加入為${TEAM_LABELS[team]}組長。\n\n組長可在手機「工作管理」管理「${altar.name}・${TEAM_LABELS[team]}」群組的工作（建立工作時請勾選該群組）；不會取得全域任務管理權限。`);
       }
 
       // Keep task_group_members in sync for 佛堂／庶務 (both leader
