@@ -1075,6 +1075,7 @@
         <button type="button" class="btn-cancel" id="ccal-add-btn">＋ 新增行程</button>
         <button type="button" class="btn-new-event" id="ccal-import-btn" style="background:var(--accent-dark);">匯入 Word</button>
       </div>
+      <div style="display:flex; gap:8px; margin-bottom:8px; font-size:13.5px; align-items:center;"><label>🛕 壇 <select id="ccal-altar" style="padding:4px 8px; border:1px solid var(--line); border-radius:6px;"><option value="">全部壇</option></select></label><span style="color:var(--ink-soft); font-size:12px;">（只過濾活動／任務；行事曆、仙佛紀念日、初一十五是全域）</span></div>
       <div style="display:flex; gap:16px; margin-bottom:8px; font-size:13.5px; flex-wrap:wrap;">
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-entry" checked><span style="width:10px;height:10px;border-radius:3px;background:#06C755;display:inline-block;"></span>行事曆</label>
         <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="ccal-f-saint" checked><span style="width:10px;height:10px;border-radius:3px;background:#B45309;display:inline-block;"></span>仙佛紀念日</label>
@@ -3669,22 +3670,41 @@ async function loadCcal() {
   if (withTasks) await supabaseClient.rpc('ensure_task_instances', { p_from: first, p_to: last });
   const [en, ev, tk] = await Promise.all([
     supabaseClient.from('calendar_entries').select('*').lte('entry_date', last).or(`end_date.gte.${first},and(end_date.is.null,entry_date.gte.${first})`).order('entry_date'),
-    supabaseClient.from('events').select('id, name, event_date, location, is_active').gte('event_date', first).lte('event_date', last),
+    supabaseClient.from('events').select('id, name, event_date, location, is_active, altar_id').gte('event_date', first).lte('event_date', last),
     withTasks
-      ? supabaseClient.from('task_instances').select('occurrence_date, template_id, task_templates ( id, title, place, is_active )').gte('occurrence_date', first).lte('occurrence_date', last).order('occurrence_date')
+      ? supabaseClient.from('task_instances').select('occurrence_date, template_id, task_templates ( id, title, place, is_active, altar_id )').gte('occurrence_date', first).lte('occurrence_date', last).order('occurrence_date')
       : Promise.resolve({ data: [] }),
   ]);
   const items = [];
   (en.data || []).forEach(e => items.push({ kind: e.category === 'saint' ? 'saint' : 'entry', lunar: e.lunar_text, kowtow: e.kowtow, id: e.id, date: e.entry_date, end: e.end_date, title: e.title, time: e.time_text, place: e.place, notes: e.notes, raw: e }));
-  (ev.data || []).forEach(e => items.push({ kind: 'event', id: e.id, date: e.event_date, title: e.name + (e.is_active === false ? '（已停用）' : ''), place: e.location }));
-  (tk.data || []).filter(i => i.task_templates && i.task_templates.is_active !== false).forEach(i => items.push({ kind: 'task', id: i.template_id, date: i.occurrence_date, title: i.task_templates.title, place: i.task_templates.place }));
+  (ev.data || []).forEach(e => items.push({ kind: 'event', id: e.id, date: e.event_date, title: e.name + (e.is_active === false ? '（已停用）' : ''), place: e.location, altar_id: e.altar_id || null }));
+  (tk.data || []).filter(i => i.task_templates && i.task_templates.is_active !== false).forEach(i => items.push({ kind: 'task', id: i.template_id, date: i.occurrence_date, title: i.task_templates.title, place: i.task_templates.place, altar_id: i.task_templates.altar_id || null }));
   lunarMarkers(ccalY, ccalM).forEach(x => items.push({ kind: 'lunar', id: null, date: x.date, title: x.title }));
   items.sort((a, b) => a.date.localeCompare(b.date));
   ccalItems = items;
   renderCcal();
 }
 
-function ccalShown() { return ccalItems.filter(it => ccalFilters[it.kind]); }
+let ccalAltars = [], ccalAltarSel = '';
+function ccalAltarSubtree(id) {
+  const ids = new Set([id]); let grew = true;
+  while (grew) { grew = false; ccalAltars.forEach(a => { if (a.parent_id && ids.has(a.parent_id) && !ids.has(a.id)) { ids.add(a.id); grew = true; } }); }
+  return ids;
+}
+async function ccalLoadAltars() {
+  const { data } = await supabaseClient.from('altars').select('id, name, parent_id').order('created_at', { ascending: true });
+  ccalAltars = data || [];
+  const sel = document.getElementById('ccal-altar');
+  sel.innerHTML = '<option value="">全部壇</option>' + buildAltarTree(ccalAltars).map(a => '<option value="' + a.id + '">' + '　'.repeat(a.depth) + escapeHtml(a.name) + '</option>').join('');
+  if (ccalAltarSel && !ccalAltars.some(a => a.id === ccalAltarSel)) ccalAltarSel = '';
+  sel.value = ccalAltarSel;
+}
+document.getElementById('ccal-altar').addEventListener('change', (e) => { ccalAltarSel = e.target.value; renderCcal(); });
+function ccalAltarOk(it) {
+  if (!ccalAltarSel || (it.kind !== 'event' && it.kind !== 'task')) return true;
+  return !!it.altar_id && ccalAltarSubtree(ccalAltarSel).has(it.altar_id);
+}
+function ccalShown() { return ccalItems.filter(it => ccalFilters[it.kind] && ccalAltarOk(it)); }
 function ccalOn(ds) { return ccalShown().filter(it => it.date <= ds && ds <= (it.end || it.date)); }
 
 function renderCcal() {
@@ -3745,6 +3765,7 @@ document.getElementById('manage-calendar-btn').addEventListener('click', () => {
   ['entry', 'saint', 'lunar', 'event', 'task'].forEach(k => { document.getElementById('ccal-f-' + k).checked = !!ccalFilters[k]; });
   const t = ctoday(); ccalY = +t.slice(0, 4); ccalM = +t.slice(5, 7); ccalSel = null;
   document.getElementById('cal-modal').classList.add('show');
+  ccalLoadAltars();
   loadCcal();
 });
 document.getElementById('ccal-close-btn').addEventListener('click', () => document.getElementById('cal-modal').classList.remove('show'));
@@ -3854,6 +3875,21 @@ document.getElementById('ci-read-btn').addEventListener('click', async () => {
   }
 });
 
+// 檔內重複：日期＋內容＋時間（含結束日）完全一樣的列，只保留第一筆。
+const ciRowKey = (r) => ciKey(r.date, r.title) + '|' + (r.end || '') + '|' + String(r.time || '').replace(/\s+/g, '');
+function ciFileDups() {
+  const res = new Map(), seen = new Set();
+  ciState.tabs.forEach((tab, ti) => {
+    const set = new Set(); res.set(ti, set);
+    if (!tab.include) return;
+    ciRows(tab).forEach((r, i) => {
+      if (r.status !== 'ok' || !r.date || ciState.dup.has(ciKey(r.date, r.title))) return;
+      const k = ciRowKey(r);
+      if (seen.has(k)) set.add(i); else seen.add(k);
+    });
+  });
+  return res;
+}
 const ciKey = (date, title) => date + '|' + String(title).replace(/\s+/g, '').toLowerCase();
 function ciRows(tab) { return buildImportRows(tab.table, tab.guess, tab.map, ciYear(ciState.year)); }
 
@@ -3883,7 +3919,8 @@ const ciFields = () => (ciState && ciState.dest === 'saint' ? CI_FIELDS_SAINT : 
 function ciOkCount(t) {
   if (!t.include) return 0;
   const ex = t.excluded || new Set();
-  return ciRows(t).filter((r, i) => r.status === 'ok' && !(r.date && ciState.dup.has(ciKey(r.date, r.title))) && !ex.has(i)).length;
+  const fd = ciFileDups().get(ciState.tabs.indexOf(t)) || new Set();
+  return ciRows(t).filter((r, i) => r.status === 'ok' && !(r.date && ciState.dup.has(ciKey(r.date, r.title))) && !fd.has(i) && !ex.has(i)).length;
 }
 
 function ciRender() {
@@ -3900,16 +3937,17 @@ function ciRender() {
   const rows = ciRows(tab);
   tab.rowsCache = rows;
   if (!tab.excluded) tab.excluded = new Set();
-  rows.forEach((r, i) => { r.dup = !!(r.date && st.dup.has(ciKey(r.date, r.title))); r.checked = r.status === 'ok' && !r.dup && !tab.excluded.has(i); });
+  const fdSet = ciFileDups().get(st.cur) || new Set();
+  rows.forEach((r, i) => { r.fdup = fdSet.has(i); r.dup = !!(r.date && st.dup.has(ciKey(r.date, r.title))) || r.fdup; r.checked = r.status === 'ok' && !r.dup && !tab.excluded.has(i); });
 
   const okN = rows.filter(r => r.status === 'ok' && !r.dup).length;
-  document.getElementById('ci-summary').textContent = `共 ${rows.length} 列：可新增 ${okN}、已存在 ${rows.filter(r => r.dup).length}、日期無法判讀 ${rows.filter(r => r.status === 'baddate').length}。` +
+  document.getElementById('ci-summary').textContent = `共 ${rows.length} 列：可新增 ${okN}、已存在 ${rows.filter(r => r.dup && !r.fdup).length}、檔內重複 ${rows.filter(r => r.fdup).length}、日期無法判讀 ${rows.filter(r => r.status === 'baddate').length}。` +
     (st.dest !== 'entry' && st.dest !== 'saint' ? '　（跨日項目在此類型只會用開始日期）' : '') +
     (st.tabs.length > 1 ? `　｜　全部 ${st.tabs.length} 個表格合計可匯入 ${ciCollect().length} 筆（` + st.tabs.map((t, i) => `表格${i + 1}：${ciOkCount(t)}`).join('、') + '）' : '');
   document.getElementById('ci-preview').innerHTML = '<table class="ci-table" style="width:100%; border-collapse:collapse;"><thead><tr><th></th>' + (st.dest === 'saint' ? '<th>國曆日期</th><th>仙佛聖號</th><th>農曆日期</th><th>叩首禮</th><th>備註</th>' : '<th>日期</th><th>項目</th><th>時間</th><th>地點</th><th>備註</th>') + '<th>狀態</th></tr></thead><tbody>' +
     rows.map((r, i) => {
       const cls = r.dup ? 'dup' : (r.status === 'baddate' ? 'bad' : '');
-      const tag = r.dup ? '<span class="ci-tag dup">已存在・略過</span>' : (r.status === 'baddate' ? `<span class="ci-tag bad">日期無法判讀${r.dateText ? '：' + escapeHtml(r.dateText) : ''}</span>` : '<span class="ci-tag ok">新增</span>');
+      const tag = r.dup ? (r.fdup ? '<span class="ci-tag dup">檔內重複・略過</span>' : '<span class="ci-tag dup">已存在・略過</span>') : (r.status === 'baddate' ? `<span class="ci-tag bad">日期無法判讀${r.dateText ? '：' + escapeHtml(r.dateText) : ''}</span>` : '<span class="ci-tag ok">新增</span>');
       return `<tr class="${cls}"><td><input type="checkbox" data-ci-row="${i}" ${r.checked ? 'checked' : ''} ${r.dup || r.status === 'baddate' ? 'disabled' : ''}></td>` +
         `<td>${r.date ? r.date + (r.end ? ' → ' + r.end : '') : '—'}${r.carried ? ' <small>(同上)</small>' : ''}</td><td>${escapeHtml(r.title)}</td><td>${escapeHtml(r.time)}</td><td>${escapeHtml(r.place)}</td><td>${escapeHtml(r.notes)}</td><td>${tag}</td></tr>`;
     }).join('') + '</tbody></table>';
@@ -3917,15 +3955,14 @@ function ciRender() {
 }
 
 function ciCollect() {
-  const out = [], seen = new Set();
-  ciState.tabs.forEach(tab => {
+  const out = [], fds = ciFileDups();
+  ciState.tabs.forEach((tab, ti) => {
     if (!tab.include) return;
+    const fd = fds.get(ti) || new Set();
     ciRows(tab).forEach((r, i) => {
       const dup = r.date && ciState.dup.has(ciKey(r.date, r.title));
-      if (r.status === 'ok' && !dup && !(tab.excluded && tab.excluded.has(i))) {
-        const k = ciKey(r.date, r.title);
-        if (seen.has(k)) return;          // same date+title in another table / page
-        seen.add(k); out.push(r);
+      if (r.status === 'ok' && !dup && !fd.has(i) && !(tab.excluded && tab.excluded.has(i))) {
+        out.push(r);                      // 檔內「日期＋內容＋時間」相同者已由 ciFileDups 略過
       }
     });
   });
