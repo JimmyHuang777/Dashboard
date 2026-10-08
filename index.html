@@ -1412,9 +1412,33 @@
       <div id="altar-team-general" style="margin-top:20px;"></div>
       <div id="altar-team-resident" style="margin-top:20px;"></div>
 
+      <div style="margin-top:22px; padding-top:14px; border-top:1px solid var(--line);">
+        <div style="font-size:14px; font-weight:700; margin-bottom:6px;">🔄 整組對調</div>
+        <p class="modal-sub" style="margin-bottom:8px;">兩組成員整組互換（已同時在兩組的人不動），並同步佛堂／庶務／住壇的任務群組。管理員直接執行；LIFF 上組長則需對方組長同意。</p>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13.5px;">
+          <select id="altar-swap-a"></select> ⇄ <select id="altar-swap-b"></select>
+          <label style="display:flex; gap:4px; align-items:center;"><input type="checkbox" id="altar-swap-leaders" checked>組長一起對調</label>
+          <button type="button" class="btn-new-event" id="altar-swap-go">執行對調</button>
+        </div>
+        <div id="altar-swap-msg" style="font-size:13px; margin-top:6px;"></div>
+      </div>
+
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="altar-detail-modal-close-btn">關閉</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="tx-modal" style="z-index:340;">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2 id="tx-title">工作細則</h2>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button type="button" class="btn-cancel" id="tx-tab-rules">📘 工作細則（6W 簡流表）</button>
+        <button type="button" class="btn-cancel" id="tx-tab-handover">🔁 交接項目</button>
+      </div>
+      <div id="tx-body" style="max-height:62vh; overflow:auto;"></div>
+      <div id="tx-msg" style="font-size:13px; margin-top:8px;"></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="tx-close-btn">關閉</button></div>
     </div>
   </div>
 
@@ -5539,6 +5563,7 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
 function openAltarDetail(altar) {
   document.getElementById('altar-detail-title').textContent = '⛩️ ' + altar.name;
   ['kitchen', 'shrine', 'general', 'resident'].forEach(team => renderAltarTeamSection(altar, team));
+  altarSwapInit(altar);
   document.getElementById('altar-detail-modal').classList.add('show');
 }
 
@@ -5547,6 +5572,7 @@ async function renderAltarTeamSection(altar, team) {
   const label = TEAM_LABELS[team];
   container.innerHTML = `
     <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${label}${team !== 'kitchen' ? '　<span style="font-weight:400; font-size:12px; color:var(--ink-soft);">（沿用任務管理，組長需另外在「任務管理」建立限定「' + escapeHtml(altar.name) + '・' + label + '」群組的工作）</span>' : ''}</div>
+    <div style="margin-bottom:8px; display:flex; gap:8px; flex-wrap:wrap;"><button type="button" class="btn-cancel" data-tx-open="rules" data-tx-team="${team}">📘 工作細則</button><button type="button" class="btn-cancel" data-tx-open="handover" data-tx-team="${team}">🔁 交接項目</button></div>
     <div id="altar-team-${team}-list" style="margin-bottom:10px;">載入中…</div>
     <div class="modal-field">
       <label>搜尋姓名以新增${label}人員</label>
@@ -5555,6 +5581,7 @@ async function renderAltarTeamSection(altar, team) {
     <div id="altar-team-${team}-results" style="max-height:160px; overflow-y:auto;"></div>
   `;
 
+  container.querySelectorAll('[data-tx-open]').forEach(b => b.addEventListener('click', () => txOpen(altar, b.dataset.txTeam, b.dataset.txOpen)));
   await refreshAltarTeamList(altar, team);
 
   let debounce = null;
@@ -5676,6 +5703,267 @@ async function runAltarTeamSearch(altar, team, query) {
       await refreshAltarTeamList(altar, team);
     });
   });
+}
+
+/* ---------- 壇各組：工作細則（6W 簡流表）／交接項目／整組對調 ---------- */
+
+let txCtx = null;          // { altar, team, tab }
+let txEditing = null;      // null | { id|null, title, owners, rows }
+let txImportList = null;   // 匯入預覽
+const W6_COLS = [['when_text', '時 When'], ['what_text', '事 What'], ['who_text', '人 Who'], ['where_text', '地 Where'], ['how_text', '物 How'], ['why_text', '備註 Why']];
+const txMsg = (t, ok) => { const m = document.getElementById('tx-msg'); m.textContent = t || ''; m.style.color = ok ? '#067A37' : '#B91C1C'; };
+
+function txOpen(altar, team, tab) {
+  txCtx = { altar, team, tab: tab || 'rules' }; txEditing = null; txImportList = null;
+  document.getElementById('tx-title').textContent = altar.name + '・' + TEAM_LABELS[team];
+  txMsg('');
+  document.getElementById('tx-modal').classList.add('show');
+  txRender();
+}
+document.getElementById('tx-close-btn').addEventListener('click', () => document.getElementById('tx-modal').classList.remove('show'));
+document.getElementById('tx-tab-rules').addEventListener('click', () => { txCtx.tab = 'rules'; txEditing = null; txImportList = null; txRender(); });
+document.getElementById('tx-tab-handover').addEventListener('click', () => { txCtx.tab = 'handover'; txEditing = null; txImportList = null; txRender(); });
+
+async function txRender() {
+  document.getElementById('tx-tab-rules').style.background = txCtx.tab === 'rules' ? '#E7F8EE' : '';
+  document.getElementById('tx-tab-handover').style.background = txCtx.tab === 'handover' ? '#E7F8EE' : '';
+  if (txCtx.tab === 'rules') await txRenderRules(); else await txRenderHandover();
+}
+
+/* ---- 工作細則 ---- */
+async function txRenderRules() {
+  const body = document.getElementById('tx-body');
+  if (txImportList) return txRenderImport();
+  if (txEditing) return txRenderRuleEditor();
+  body.innerHTML = '載入中…';
+  const { data: rules, error } = await supabaseClient.from('altar_team_rules').select('*, altar_team_rule_rows ( id )').eq('altar_id', txCtx.altar.id).eq('team', txCtx.team).order('sort_order').order('created_at');
+  if (error) { body.innerHTML = '<div style="color:#B91C1C;">' + escapeHtml(error.message) + '（請先執行 SQL/56）</div>'; return; }
+  txCtx.rules = rules || [];
+  body.innerHTML = '<div style="display:flex; gap:8px; margin-bottom:10px;"><button type="button" class="btn-new-event" id="tx-rule-add">＋ 新增工作細則</button><button type="button" class="btn-cancel" id="tx-rule-import">匯入簡流表 (.xlsx／.docx)</button><input type="file" id="tx-rule-file" accept=".xlsx,.docx" style="display:none;"></div>' +
+    (txCtx.rules.length ? '<table style="width:100%; border-collapse:collapse; font-size:13.5px;">' + txCtx.rules.map(r =>
+      `<tr style="border-top:1px solid var(--line);"><td style="padding:8px 4px;"><strong>${escapeHtml(r.title)}</strong>${r.owners ? '<div style="font-size:12px; color:var(--ink-soft);">負責人：' + escapeHtml(r.owners) + '</div>' : ''}</td><td>${(r.altar_team_rule_rows || []).length} 列</td>` +
+      `<td style="text-align:right; white-space:nowrap;"><button type="button" class="btn-cancel" data-tx-edit="${r.id}">編輯</button> <button type="button" class="btn-cancel" data-tx-del="${r.id}" style="color:#B91C1C;">刪除</button></td></tr>`).join('') + '</table>'
+      : '<div style="color:var(--ink-soft);">尚未建立工作細則。</div>');
+  document.getElementById('tx-rule-add').addEventListener('click', () => { txEditing = { id: null, title: '', owners: '', rows: [{}] }; txRender(); });
+  document.getElementById('tx-rule-import').addEventListener('click', () => document.getElementById('tx-rule-file').click());
+  document.getElementById('tx-rule-file').addEventListener('change', txReadFile);
+  body.querySelectorAll('[data-tx-edit]').forEach(b => b.addEventListener('click', async () => {
+    const r = txCtx.rules.find(x => x.id === b.dataset.txEdit);
+    const { data: rows } = await supabaseClient.from('altar_team_rule_rows').select('*').eq('rule_id', r.id).order('sort_order');
+    txEditing = { id: r.id, title: r.title, owners: r.owners || '', rows: rows && rows.length ? rows : [{}] }; txRender();
+  }));
+  body.querySelectorAll('[data-tx-del]').forEach(b => b.addEventListener('click', async () => {
+    const r = txCtx.rules.find(x => x.id === b.dataset.txDel);
+    if (!confirm('確定刪除「' + r.title + '」？')) return;
+    const { error: e } = await supabaseClient.from('altar_team_rules').delete().eq('id', r.id);
+    if (e) { txMsg(e.message); return; }
+    txRender();
+  }));
+}
+
+function txRuleRowsHTML(rows) {
+  return rows.map((r, i) => '<tr>' + W6_COLS.map(([k]) => `<td style="vertical-align:top;"><textarea data-tx-f="${k}" data-tx-i="${i}" rows="${k === 'what_text' || k === 'how_text' || k === 'why_text' ? 6 : 3}" style="width:100%; min-width:${k === 'when_text' || k === 'who_text' || k === 'where_text' ? 90 : 170}px; padding:5px; border:1px solid var(--line); border-radius:6px; font-size:12.5px; font-family:inherit;">${escapeHtml(r[k] || '')}</textarea></td>`).join('') +
+    `<td style="vertical-align:top;"><button type="button" class="btn-cancel" data-tx-rowdel="${i}">✕</button></td></tr>`).join('');
+}
+function txRenderRuleEditor() {
+  const e = txEditing, body = document.getElementById('tx-body');
+  body.innerHTML = `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;"><div class="modal-field" style="margin:0;"><label>工作項目名稱</label><input type="text" id="tx-r-title" value="${escapeHtml(e.title)}" placeholder="例：點傳師接待"></div><div class="modal-field" style="margin:0;"><label>負責人（選填）</label><input type="text" id="tx-r-owners" value="${escapeHtml(e.owners)}"></div></div>` +
+    `<table style="width:100%; border-collapse:collapse;"><thead><tr>${W6_COLS.map(([, l]) => `<th style="text-align:left; font-size:12.5px;">${l}</th>`).join('')}<th></th></tr></thead><tbody id="tx-r-rows">${txRuleRowsHTML(e.rows)}</tbody></table>` +
+    '<div style="margin-top:8px; display:flex; gap:8px;"><button type="button" class="btn-cancel" id="tx-r-addrow">＋ 新增一列</button><span style="flex:1;"></span><button type="button" class="btn-cancel" id="tx-r-cancel">取消</button><button type="button" class="btn-new-event" id="tx-r-save">儲存</button></div>';
+  const collect = () => {
+    e.title = document.getElementById('tx-r-title').value; e.owners = document.getElementById('tx-r-owners').value;
+    const rows = e.rows.map(() => ({}));
+    body.querySelectorAll('[data-tx-f]').forEach(t => { rows[+t.dataset.txI][t.dataset.txF] = t.value; });
+    e.rows = rows;
+  };
+  document.getElementById('tx-r-addrow').addEventListener('click', () => { collect(); e.rows.push({}); txRenderRuleEditor(); });
+  body.querySelectorAll('[data-tx-rowdel]').forEach(b => b.addEventListener('click', () => { collect(); e.rows.splice(+b.dataset.txRowdel, 1); if (!e.rows.length) e.rows.push({}); txRenderRuleEditor(); }));
+  document.getElementById('tx-r-cancel').addEventListener('click', () => { txEditing = null; txRender(); });
+  document.getElementById('tx-r-save').addEventListener('click', async () => {
+    collect();
+    if (!e.title.trim()) { txMsg('請填寫工作項目名稱。'); return; }
+    try { await txSaveRule(e); txEditing = null; txMsg('已儲存。', true); txRender(); } catch (err) { txMsg('儲存失敗：' + err.message); }
+  });
+}
+const txClean = (v) => { const t = String(v == null ? '' : v).trim(); return t || null; };
+// 新增或更新一份簡流表；回傳 id。id 缺少時以「同壇同組同名」覆蓋。
+async function txSaveRule(rule) {
+  let id = rule.id;
+  if (!id) {
+    const { data: ex } = await supabaseClient.from('altar_team_rules').select('id').eq('altar_id', txCtx.altar.id).eq('team', txCtx.team).eq('title', rule.title.trim()).maybeSingle();
+    if (ex) id = ex.id;
+  }
+  if (id) {
+    const { error } = await supabaseClient.from('altar_team_rules').update({ title: rule.title.trim(), owners: txClean(rule.owners), updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) throw error;
+    const { error: de } = await supabaseClient.from('altar_team_rule_rows').delete().eq('rule_id', id);
+    if (de) throw de;
+  } else {
+    const { data: last } = await supabaseClient.from('altar_team_rules').select('sort_order').eq('altar_id', txCtx.altar.id).eq('team', txCtx.team).order('sort_order', { ascending: false }).limit(1);
+    const { data: ins, error } = await supabaseClient.from('altar_team_rules').insert({ altar_id: txCtx.altar.id, team: txCtx.team, title: rule.title.trim(), owners: txClean(rule.owners), sort_order: last && last[0] ? last[0].sort_order + 1 : 0 }).select('id').single();
+    if (error) throw error;
+    id = ins.id;
+  }
+  const rows = (rule.rows || []).map((r, i) => ({ rule_id: id, sort_order: i, when_text: txClean(r.when_text), what_text: txClean(r.what_text), who_text: txClean(r.who_text), where_text: txClean(r.where_text), how_text: txClean(r.how_text), why_text: txClean(r.why_text) }))
+    .filter(r => r.when_text || r.what_text || r.who_text || r.where_text || r.how_text || r.why_text);
+  if (rows.length) { const { error } = await supabaseClient.from('altar_team_rule_rows').insert(rows); if (error) throw error; }
+  return id;
+}
+
+/* ---- 匯入 6W 簡流表（Excel／Word） ---- */
+// rows: 二維文字陣列；回傳 { title, owners, rows } 或 null。
+// 表頭列：含「時」「事」「人」（可帶 (How) 等括號字）；上方文字列「XXX 工作簡流表(6W) 人名…」取得名稱與負責人。
+function w6Parse(grid, fallbackTitle) {
+  const norm = (c) => String(c == null ? '' : c).replace(/\r/g, '').trim();
+  const first = (c) => norm(c).replace(/[\s(（].*$/s, '').slice(0, 1);
+  let h = -1;
+  for (let i = 0; i < Math.min(grid.length, 8); i++) {
+    const f = (grid[i] || []).map(first);
+    if (f.includes('時') && f.includes('事') && f.includes('人')) { h = i; break; }
+  }
+  if (h < 0) return null;
+  const head = (grid[h] || []).map(first);
+  const col = {}; [['when_text', '時'], ['what_text', '事'], ['who_text', '人'], ['where_text', '地'], ['how_text', '物']].forEach(([k, ch]) => { col[k] = head.indexOf(ch); });
+  const whyIdx = (grid[h] || []).findIndex(c => /備註|Why/i.test(norm(c)));
+  col.why_text = whyIdx;
+  let title = '', owners = '';
+  for (let i = 0; i < h; i++) {
+    const t = [...new Set((grid[i] || []).map(norm).filter(Boolean))].join(' ');   // 合併儲存格會重複同一段文字
+    if (!t) continue;
+    const m = t.match(/^\s*(.*?)\s*工作簡流表\s*[（(]?\s*6W\s*[）)]?\s*(.*)$/i);
+    if (m) { title = m[1].trim(); owners = m[2].trim(); break; }
+    if (!title) title = t.trim();
+  }
+  const rows = [];
+  for (let i = h + 1; i < grid.length; i++) {
+    const r = {}; let any = false;
+    Object.keys(col).forEach(k => { const v = col[k] >= 0 ? norm((grid[i] || [])[col[k]]) : ''; r[k] = v; if (v) any = true; });
+    if (any) rows.push(r);
+  }
+  if (!rows.length) return null;
+  return { title: title || fallbackTitle, owners, rows };
+}
+
+async function txReadFile(e) {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  txMsg('讀取中…', true);
+  try {
+    const list = [];
+    if (/\.xlsx?$/i.test(file.name)) {
+      await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', () => window.XLSX);
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      wb.SheetNames.forEach(name => {
+        const ws = wb.Sheets[name];
+        const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '', blankrows: true });
+        (ws['!merges'] || []).forEach(m => {   // 合併儲存格：把左上角的字填滿
+          const v = (grid[m.s.r] || [])[m.s.c];
+          for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) { (grid[r] ||= [])[c] = v; }
+        });
+        const p = w6Parse(grid, name);
+        if (p) list.push(p);
+      });
+    } else {
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const tables = docxTablesFromXml(await zip.file('word/document.xml').async('string'), DOMParser);
+      tables.forEach((t, i) => {
+        const grid = (t.context ? [[t.context]] : []).concat(t.rows.map(r => r.map(c => String(c || '').replace(/\s*\/\s*/g, '\n'))));
+        const p = w6Parse(grid, file.name.replace(/\.docx$/i, '') + ' ' + (i + 1));
+        if (p) list.push(p);
+      });
+    }
+    if (!list.length) throw new Error('沒有找到「時／事／人／地／物／備註」的簡流表。');
+    txImportList = list.map(p => Object.assign({ checked: true }, p));
+    txMsg('');
+    txRender();
+  } catch (err) { txMsg('讀取失敗：' + err.message); }
+}
+function txRenderImport() {
+  const body = document.getElementById('tx-body');
+  body.innerHTML = `<p class="modal-sub">找到 ${txImportList.length} 份簡流表，將存入「${escapeHtml(txCtx.altar.name)}・${TEAM_LABELS[txCtx.team]}」。同名的會被覆蓋。</p>` +
+    txImportList.map((p, i) => `<div style="border:1px solid var(--line); border-radius:8px; padding:8px; margin-bottom:8px;"><label style="display:flex; gap:8px; align-items:center;"><input type="checkbox" data-tx-ichk="${i}" ${p.checked ? 'checked' : ''}><input type="text" data-tx-ititle="${i}" value="${escapeHtml(p.title)}" style="flex:1; padding:5px 8px; border:1px solid var(--line); border-radius:6px;"><span style="font-size:12px; color:var(--ink-soft);">${p.rows.length} 列${p.owners ? '・' + escapeHtml(p.owners.slice(0, 40)) : ''}</span></label>` +
+      `<div style="font-size:12px; color:var(--ink-soft); margin-top:4px;">${p.rows.map(r => escapeHtml((r.when_text || '').replace(/\n/g, ' '))).join('／')}</div></div>`).join('') +
+    '<div style="display:flex; gap:8px; justify-content:flex-end;"><button type="button" class="btn-cancel" id="tx-i-cancel">取消</button><button type="button" class="btn-new-event" id="tx-i-save">存入</button></div>';
+  body.querySelectorAll('[data-tx-ichk]').forEach(c => c.addEventListener('change', () => { txImportList[+c.dataset.txIchk].checked = c.checked; }));
+  body.querySelectorAll('[data-tx-ititle]').forEach(c => c.addEventListener('input', () => { txImportList[+c.dataset.txItitle].title = c.value; }));
+  document.getElementById('tx-i-cancel').addEventListener('click', () => { txImportList = null; txRender(); });
+  document.getElementById('tx-i-save').addEventListener('click', async () => {
+    const picks = txImportList.filter(p => p.checked && p.title.trim());
+    if (!picks.length) { txMsg('沒有勾選任何簡流表。'); return; }
+    try {
+      for (const p of picks) await txSaveRule({ id: null, title: p.title, owners: p.owners, rows: p.rows });
+      txImportList = null; txMsg('已存入 ' + picks.length + ' 份工作細則。', true); txRender();
+    } catch (err) { txMsg('儲存失敗：' + err.message); }
+  });
+}
+
+/* ---- 交接項目 ---- */
+async function txRenderHandover() {
+  const body = document.getElementById('tx-body');
+  body.innerHTML = '載入中…';
+  const { data: items, error } = await supabaseClient.from('altar_team_handover_items').select('*').eq('altar_id', txCtx.altar.id).eq('team', txCtx.team).order('sort_order').order('created_at');
+  if (error) { body.innerHTML = '<div style="color:#B91C1C;">' + escapeHtml(error.message) + '（請先執行 SQL/56）</div>'; return; }
+  const done = (items || []).filter(i => i.confirmed_at).length;
+  body.innerHTML = `<p class="modal-sub">已確認 ${done} / ${(items || []).length}。組長可在手機（壇務→該組→交接項目）逐項勾選確認。</p>` +
+    (items || []).map(i => `<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:6px;" data-tx-h="${i.id}"><span style="width:22px; padding-top:7px;">${i.confirmed_at ? '✅' : '⬜'}</span><input type="text" class="tx-h-title" value="${escapeHtml(i.title)}" style="flex:1; padding:6px 8px; border:1px solid var(--line); border-radius:6px;"><input type="text" class="tx-h-note" value="${escapeHtml(i.note || '')}" placeholder="說明" style="flex:1.4; padding:6px 8px; border:1px solid var(--line); border-radius:6px;"><button type="button" class="btn-cancel" data-tx-hsave="${i.id}">儲存</button><button type="button" class="btn-cancel" data-tx-hdel="${i.id}" style="color:#B91C1C;">刪除</button></div>`).join('') +
+    '<div style="display:flex; gap:8px; margin-top:10px;"><input type="text" id="tx-h-newtitle" placeholder="新增交接項目（例：鑰匙、帳務、庫存）" style="flex:1; padding:6px 8px; border:1px solid var(--line); border-radius:6px;"><input type="text" id="tx-h-newnote" placeholder="說明（選填）" style="flex:1.4; padding:6px 8px; border:1px solid var(--line); border-radius:6px;"><button type="button" class="btn-new-event" id="tx-h-add">＋ 新增</button></div>' +
+    '<div style="margin-top:12px;"><button type="button" class="btn-cancel" id="tx-h-reset">重新開始交接（清除全部勾選）</button></div>';
+  document.getElementById('tx-h-add').addEventListener('click', async () => {
+    const t = document.getElementById('tx-h-newtitle').value.trim(); if (!t) return;
+    const { error: e } = await supabaseClient.from('altar_team_handover_items').insert({ altar_id: txCtx.altar.id, team: txCtx.team, title: t, note: txClean(document.getElementById('tx-h-newnote').value), sort_order: (items || []).length });
+    if (e) { txMsg(e.message); return; } txRender();
+  });
+  body.querySelectorAll('[data-tx-hsave]').forEach(b => b.addEventListener('click', async () => {
+    const row = b.closest('[data-tx-h]');
+    const { error: e } = await supabaseClient.from('altar_team_handover_items').update({ title: row.querySelector('.tx-h-title').value.trim(), note: txClean(row.querySelector('.tx-h-note').value) }).eq('id', b.dataset.txHsave);
+    txMsg(e ? e.message : '已儲存。', !e);
+  }));
+  body.querySelectorAll('[data-tx-hdel]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('確定刪除這個交接項目？')) return;
+    const { error: e } = await supabaseClient.from('altar_team_handover_items').delete().eq('id', b.dataset.txHdel);
+    if (e) { txMsg(e.message); return; } txRender();
+  }));
+  document.getElementById('tx-h-reset').addEventListener('click', async () => {
+    if (!confirm('清除這一組全部已確認的勾選？')) return;
+    const { error: e } = await supabaseClient.from('altar_team_handover_items').update({ confirmed_at: null, confirmed_by: null }).eq('altar_id', txCtx.altar.id).eq('team', txCtx.team);
+    if (e) { txMsg(e.message); return; } txRender();
+  });
+}
+
+/* ---- 整組對調（管理員直接執行；邏輯與 altar-team-api 的 executeSwap 相同） ---- */
+function altarSwapInit(altar) {
+  const opts = ['kitchen', 'shrine', 'general', 'resident'].map(t => `<option value="${t}">${TEAM_LABELS[t]}</option>`).join('');
+  const a = document.getElementById('altar-swap-a'), b = document.getElementById('altar-swap-b');
+  a.innerHTML = opts; b.innerHTML = opts; a.value = 'general'; b.value = 'shrine';
+  document.getElementById('altar-swap-msg').textContent = '';
+  document.getElementById('altar-swap-go').onclick = () => altarSwapRun(altar);
+}
+async function altarSwapGroup(altarId, team) {
+  if (!['shrine', 'general', 'resident'].includes(team)) return null;
+  const { data } = await supabaseClient.from('task_groups').select('id').eq('altar_id', altarId).eq('team', team).maybeSingle();
+  return data ? data.id : null;
+}
+async function altarSwapRun(altar) {
+  const A = document.getElementById('altar-swap-a').value, B = document.getElementById('altar-swap-b').value;
+  const withLeaders = document.getElementById('altar-swap-leaders').checked;
+  const msg = document.getElementById('altar-swap-msg');
+  if (A === B) { msg.style.color = '#B91C1C'; msg.textContent = '請選兩個不同的組。'; return; }
+  if (!confirm(`確定將「${TEAM_LABELS[A]}」與「${TEAM_LABELS[B]}」整組對調${withLeaders ? '（含組長）' : '（只對調組員）'}？`)) return;
+  try {
+    const { data: rows, error } = await supabaseClient.from('altar_team_members').select('user_id, role, team').eq('altar_id', altar.id).in('team', [A, B]);
+    if (error) throw error;
+    const sel = (t) => (rows || []).filter(r => r.team === t && (withLeaders || r.role === 'member'));
+    const setOf = (t) => new Set((rows || []).filter(r => r.team === t).map(r => r.user_id));
+    const toB = sel(A).filter(r => !setOf(B).has(r.user_id)), toA = sel(B).filter(r => !setOf(A).has(r.user_id));
+    for (const r of toB) { const { error: e } = await supabaseClient.from('altar_team_members').update({ team: B }).eq('altar_id', altar.id).eq('team', A).eq('user_id', r.user_id); if (e) throw e; }
+    for (const r of toA) { const { error: e } = await supabaseClient.from('altar_team_members').update({ team: A }).eq('altar_id', altar.id).eq('team', B).eq('user_id', r.user_id); if (e) throw e; }
+    const gA = await altarSwapGroup(altar.id, A), gB = await altarSwapGroup(altar.id, B);
+    for (const r of toB) { if (gA) await supabaseClient.from('task_group_members').delete().eq('group_id', gA).eq('user_id', r.user_id); if (gB) await supabaseClient.from('task_group_members').insert({ group_id: gB, user_id: r.user_id }); }
+    for (const r of toA) { if (gB) await supabaseClient.from('task_group_members').delete().eq('group_id', gB).eq('user_id', r.user_id); if (gA) await supabaseClient.from('task_group_members').insert({ group_id: gA, user_id: r.user_id }); }
+    await supabaseClient.from('altar_team_swaps').insert({ altar_id: altar.id, team_a: A, team_b: B, include_leaders: withLeaders, status: 'accepted', resolved_at: new Date().toISOString() });
+    msg.style.color = '#067A37'; msg.textContent = `已完成：${TEAM_LABELS[A]}→${TEAM_LABELS[B]} ${toB.length} 人，${TEAM_LABELS[B]}→${TEAM_LABELS[A]} ${toA.length} 人。`;
+    ['kitchen', 'shrine', 'general', 'resident'].forEach(t => refreshAltarTeamList(altar, t));
+  } catch (err) { msg.style.color = '#B91C1C'; msg.textContent = '對調失敗：' + err.message; }
 }
 
 /* =========================================================
