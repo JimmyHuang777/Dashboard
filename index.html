@@ -1015,7 +1015,6 @@
             <label>負責點傳師<input type="text" id="rs-teacher" placeholder="例：林浴沂 點傳師" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
             <label>最少列數（不足以空白列補齊）<input type="number" id="rs-rows" min="1" max="300" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
           </div>
-          <label style="display:flex; gap:6px; align-items:center; font-size:13px; margin-top:8px;"><input type="checkbox" id="rs-rolecols"> 加入天職欄位（點傳師／壇主／副壇主／講師／辦事人員／道親／班員／補課／旁聽／小天使），依報名的天職自動在對應欄位打 V</label>
           <label style="display:block; font-size:13px; margin-top:8px;">填表注意事項（每行一條，印在表格右側）<textarea id="rs-notes" rows="2" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea></label>
           <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button type="button" class="btn-cancel" id="rs-import-btn">從 Excel 匯入範本…</button><input type="file" id="rs-import-file" accept=".xlsx" style="display:none;">
@@ -2114,6 +2113,7 @@ function csvRoleColFor(v, cols) {
   if (cols.includes(v)) return v;
   return cols.filter(c => v.includes(c)).sort((a, b) => b.length - a.length)[0] || null;
 }
+let rosterCells = null;    // 匯入範本時讀到的其他有值儲存格（表頭區、資料列公式、表格右側）
 let rosterFooter = null;   // 匯入範本時讀到的表格下方內容（含公式），輸出時照樣重建
 function rsFooterInfo() {
   const el = document.getElementById('rs-footer-info'); if (!el) return;
@@ -2127,6 +2127,7 @@ function csvRosterReadLayout(forTemplate) {   // 範本只存「不隨班次變�
   const L = { format: 'roster', title: rsEl('title').value.trim(), teacher: rsEl('teacher').value.trim(), notes: rsEl('notes').value, minRows: Math.max(1, Math.min(300, parseInt(rsEl('rows').value, 10) || 50)) };
   if (rosterFooter && rosterFooter.length) L.footer = rosterFooter;
   if (rosterRoleCols) L.roleCols = rosterRoleCols;
+  if (rosterCells && (rosterCells.head.length || rosterCells.body.length)) L.cells = rosterCells;
   if (!forTemplate) { L.cls = rsEl('class').value.trim(); L.date = rsEl('date').value.trim(); L.place = rsEl('place').value.trim(); }
   return L;
 }
@@ -2136,6 +2137,7 @@ function csvRosterApplyLayout(L) {
   if (L.notes != null) rsEl('notes').value = L.notes;
   if (L.minRows) rsEl('rows').value = L.minRows;
   rosterFooter = (L.footer && L.footer.length) ? L.footer : null; rsFooterInfo();
+  rosterCells = (L.cells && ((L.cells.head || []).length || (L.cells.body || []).length)) ? L.cells : null;
   rosterRoleCols = (L.roleCols && L.roleCols.length) ? L.roleCols : null; rsRoleInfo();
   if (L.cls != null) rsEl('class').value = L.cls;
   if (L.date != null) rsEl('date').value = L.date;
@@ -2163,11 +2165,10 @@ function csvRosterInit(opts) {
     rsEl('class').value = m.name || ''; rsEl('date').value = roc(m.date); rsEl('place').value = m.location || '';
     rsEl('teacher').value = saved.teacher || ''; rsEl('notes').value = saved.notes || ''; rsEl('rows').value = saved.minRows || 50;
   }
-  rosterFooter = null; rsFooterInfo(); rosterRoleCols = null; rsRoleInfo();
+  rosterFooter = null; rsFooterInfo(); rosterRoleCols = null; rsRoleInfo(); rosterCells = null;
   csvRosterSync();
 }
 document.querySelectorAll('input[name="csv-fmt"]').forEach(r => r.addEventListener('change', csvRosterSync));
-document.getElementById('rs-rolecols').addEventListener('change', (e) => { rosterRoleCols = e.target.checked ? ROLE_COLS.slice() : null; });
 
 const ROSTER_BASE = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', '備註'];
 function csvRosterMark(v) { v = String(v == null ? '' : v).trim(); return (!v || /^(否|無|沒有|不.*|no|n|false|0|x|-)$/i.test(v)) ? '' : 'V'; }
@@ -2229,6 +2230,16 @@ async function csvRosterBuild() {
     cell(6, lastCol + 2).value = '填表注意事項:';
     noteLines.forEach((t, i) => { cell(7 + i, lastCol + 2).value = t; });
     ws.getColumn(lastCol + 2).width = 60;
+  }
+  // 匯入範本的其他有值儲存格：表頭區、資料列公式（每列各自套用）、表格右側
+  if (rosterCells) {
+    const putCell = (r, c, it) => {
+      if (it.span > 0) { try { ws.mergeCells(r, c, r, c + it.span); } catch (e) { /* 已合併 */ } }
+      cell(r, c).value = it.f ? { formula: it.f.replace(/\{R\}/g, r).replace(/\{([FL])([+-]\d+)?\}/g, (m, k, off) => String((k === 'F' ? 6 : last) + (off ? parseInt(off, 10) : 0))) } : it.v;
+      cell(r, c).font = { size: 12, name: 'Microsoft JhengHei' };
+    };
+    (rosterCells.head || []).forEach(it => putCell(it.r, it.c, it));
+    (rosterCells.body || []).forEach(it => { if (it.each) { for (let i = 0; i < N; i++) putCell(6 + i, it.c, it); } else if (it.dr < N) putCell(6 + it.dr, it.c, it); });
   }
   // 統計：匯入範本帶有表尾（含公式）時照樣重建；否則用預設統計
   if (rosterFooter && rosterFooter.length) {
@@ -2322,11 +2333,43 @@ document.getElementById('rs-import-file').addEventListener('change', async (e) =
       });
     });
     L.footer = footer;
+    // 其他有值的儲存格：表頭區（標題／班別／日期／地點／負責點傳師以外）、資料列中的公式、表格右側（注意事項以外）
+    const lastHeadCol = (grid[hr] || []).reduce((m, x, i) => (String(x || '').trim() ? Math.max(m, i) : m), 0);
+    const cellOf = (c) => { const f = c.formula || (c.value && typeof c.value === 'object' && (c.value.formula || c.value.sharedFormula)) || null; return { f: f ? String(f) : null, v: txt(c).trim() }; };
+    const head = [], bodyRaw = [];
+    ws.eachRow({ includeEmpty: false }, (row, rn) => {
+      if (rn >= hr && rn <= hr + 1) return;
+      row.eachCell({ includeEmpty: false }, (c, cn) => {
+        if (c.isMerged && c.master && c.master.address !== c.address) return;   // 合併儲存格只取左上角
+        const { f, v } = cellOf(c); if (!f && !v) return;
+        const span = spans[rn + ':' + cn] || 0;
+        if (rn < hr) {
+          if (/^(班別|日期|地點|負責點傳師)\s*[:：]/.test(v) || (rn === 1 && cn === 1)) return;
+          head.push(f ? { r: rn, c: cn, span, f: tok(f) } : { r: rn, c: cn, span, v });
+        } else if (rn >= firstR && rn <= lastR) {
+          const inNotes = nc > 0 && cn === nc && rn >= nr;
+          if (inNotes) return;
+          if (f || cn > lastHeadCol) {
+            const rowTok = (g) => g.replace(/(\$?[A-Z]{1,3}\$?)(\d+)/g, (m, col, rw) => (+rw === rn ? col + '{R}' : tok(m)));
+            bodyRaw.push({ dr: rn - firstR, c: cn, span, f: f ? rowTok(f) : null, v });
+          }
+        }
+      });
+    });
+    // 同一欄每一列都是同樣公式 → 視為「整欄公式」，列數改變時也會填滿
+    const body = [], byCol = {};
+    bodyRaw.forEach(it => { (byCol[it.c] = byCol[it.c] || []).push(it); });
+    Object.values(byCol).forEach(arr => {
+      if (arr.every(x => x.f) && arr.length >= Math.max(2, n) && new Set(arr.map(x => x.f)).size === 1) body.push({ each: true, c: arr[0].c, span: arr[0].span, f: arr[0].f });
+      else arr.forEach(x => body.push(x.f ? { dr: x.dr, c: x.c, span: x.span, f: x.f } : { dr: x.dr, c: x.c, span: x.span, v: x.v }));
+    });
+    L.cells = { head, body };
+    const nCells = head.length + body.length;
     csvRosterApplyLayout(L);
     const st = csvExtraState;
     heads.forEach(h => { if (!st.cols.some(c => c.name.trim() === h)) st.cols.push({ name: h, def: '', vals: st.rows.map(() => ''), dirty: new Set() }); });
     renderCsvExtra();
-    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (roleHeads.length ? '、天職欄位（' + roleHeads.join('、') + '，依天職自動打 V）' : '') + (footer.length ? '、表尾統計（' + footer.filter(x => x.f).length + ' 個公式）' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
+    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (roleHeads.length ? '、天職欄位（' + roleHeads.join('、') + '，依天職自動打 V）' : '') + (nCells ? '、其他有值儲存格 ' + nCells + ' 個（含公式 ' + [...head, ...body].filter(x => x.f).length + ' 個）' : '') + (footer.length ? '、表尾統計（' + footer.filter(x => x.f).length + ' 個公式）' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
   } catch (err) { alert('匯入失敗：' + (err && err.message ? err.message : err)); }
 });
 
