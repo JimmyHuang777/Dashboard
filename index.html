@@ -1015,6 +1015,7 @@
             <label>負責點傳師<input type="text" id="rs-teacher" placeholder="例：林浴沂 點傳師" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
             <label>最少列數（不足以空白列補齊）<input type="number" id="rs-rows" min="1" max="300" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
           </div>
+          <label style="display:flex; gap:6px; align-items:center; font-size:13px; margin-top:8px;"><input type="checkbox" id="rs-rolecols"> 加入天職欄位（點傳師／壇主／副壇主／講師／辦事人員／道親／班員／補課／旁聽／小天使），依報名的天職自動在對應欄位打 V</label>
           <label style="display:block; font-size:13px; margin-top:8px;">填表注意事項（每行一條，印在表格右側）<textarea id="rs-notes" rows="2" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea></label>
           <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button type="button" class="btn-cancel" id="rs-import-btn">從 Excel 匯入範本…</button><input type="file" id="rs-import-file" accept=".xlsx" style="display:none;">
@@ -1026,11 +1027,10 @@
       <div id="csv-sort-row" style="display:none; margin-bottom:10px; font-size:14px; align-items:center; gap:8px;">
         <strong>自動排序</strong>
         <select id="csv-sort" style="padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:14px;">
-          <option value="">不排序（原順序）</option>
-          <option value="time">依報名時間（先報名在前）</option>
           <option value="gender_role">依性別及天職（乾→坤→童→女；天職由上而下）</option>
+          <option value="time">依報名時間（先報名在前）</option>
         </select>
-        <span style="font-size:12px; color:var(--ink-soft);">天職順序：點傳師、壇主、副壇主、講師、辦事人員、道親、無（空白）</span>
+        <span style="font-size:12px; color:var(--ink-soft);">天職順序：點傳師、壇主、副壇主、講師、辦事人員、道親、班員、補課、旁聽、無（空白）</span>
       </div>
       <div id="csv-extra-cols"></div>
       <button type="button" class="btn-cancel" id="csv-extra-add-btn" style="margin:6px 0 12px;">＋ 新增欄位</button>
@@ -1952,12 +1952,12 @@ document.getElementById('csv-tpl-select').addEventListener('change', (e) => {
   const st = csvExtraState;
   st.cols = (t.columns || []).filter(c => !c.layout).map(c => ({ name: c.name || '', def: c.def || '', vals: st.rows.map(() => c.def || ''), dirty: new Set() }));
   const lay = (t.columns || []).find(c => c.layout);
-  if (lay) { if (lay.layout.format === 'roster') csvRosterApplyLayout(lay.layout); if (lay.layout.sort != null && st.key === 'registrants') document.getElementById('csv-sort').value = lay.layout.sort; }
+  if (lay) { if (lay.layout.format === 'roster') csvRosterApplyLayout(lay.layout); if (lay.layout.sort != null && st.key === 'registrants') document.getElementById('csv-sort').value = lay.layout.sort === 'time' ? 'time' : 'gender_role'; }
   renderCsvExtra();
 });
 document.getElementById('csv-tpl-save-btn').addEventListener('click', async () => {
   const cols = csvExtraState.cols.filter(c => c.name.trim()).map(c => ({ name: c.name.trim(), def: c.def || '' }));
-  if (cols.length === 0 && csvRosterFormat() !== 'roster' && !document.getElementById('csv-sort').value) { alert('請先新增至少一個有名稱的欄位，或選擇排序／開班名單格式。'); return; }
+  if (cols.length === 0 && csvRosterFormat() !== 'roster' && false) { return; }
   cols.push({ layout: Object.assign(csvRosterFormat() === 'roster' ? csvRosterReadLayout(true) : {}, { sort: document.getElementById('csv-sort').value || '' }) });
   const sel = document.getElementById('csv-tpl-select');
   const current = csvTemplates.find(x => x.id === sel.value);
@@ -2056,18 +2056,21 @@ document.getElementById('csv-extra-download-btn').addEventListener('click', () =
 });
 
 /* ---------- 自動排序（報名名單）---------- */
-const ROLE_ORDER = ['點傳師', '副壇主', '壇主', '講師', '辦事人員', '道親'];   // 副壇主要先比對（它含「壇主」二字）
+const ROLE_ORDER = ['點傳師', '壇主', '副壇主', '講師', '辦事人員', '道親', '班員', '補課', '旁聽'];   // 副壇主要先比對（它含「壇主」二字）
 function csvRoleRank(v) {
   v = String(v == null ? '' : v).replace(/\s+/g, '');
-  if (!v || /^(無|无|沒有|none|-)$/i.test(v)) return 7;
+  if (!v || /^(無|无|沒有|none|-)$/i.test(v)) return 10;
   if (/小天使/.test(v)) return 0;
   if (v.includes('點傳師')) return 1;
-  if (v.includes('副壇主')) return 3;
+  if (v.includes('副壇主')) return 3;      // 先比對副壇主（含「壇主」二字）
   if (v.includes('壇主')) return 2;
   if (v.includes('講師')) return 4;
   if (v.includes('辦事人員') || v.includes('辦事員')) return 5;
   if (v.includes('道親')) return 6;
-  return 8;
+  if (v.includes('班員')) return 7;
+  if (v.includes('補課')) return 8;
+  if (v.includes('旁聽')) return 9;
+  return 11;
 }
 function csvGenderRank(v) {
   v = String(v == null ? '' : v).replace(/\s+/g, '');
@@ -2100,6 +2103,17 @@ document.getElementById('csv-sort').addEventListener('change', (e) => {
 });
 
 /* ---------- 開班參加名單（Excel 表單格式）---------- */
+const ROLE_COLS = ['點傳師', '壇主', '副壇主', '講師', '辦事人員', '道親', '班員', '補課', '旁聽', '小天使'];
+let rosterRoleCols = null;   // 依天職自動打 V 的欄位（表頭中的 點傳師／壇主／…），null = 不使用
+function rsRoleInfo() { const c = document.getElementById('rs-rolecols'); if (c) c.checked = !!rosterRoleCols; }
+// 天職文字 → 該列要打 V 的欄位名（完全相同優先，其次取最長的包含者，所以「副壇主」不會落到「壇主」）
+function csvRoleColFor(v, cols) {
+  v = String(v == null ? '' : v).replace(/\s+/g, '');
+  if (!v) return null;
+  if (v === '辦事員') v = '辦事人員';
+  if (cols.includes(v)) return v;
+  return cols.filter(c => v.includes(c)).sort((a, b) => b.length - a.length)[0] || null;
+}
 let rosterFooter = null;   // 匯入範本時讀到的表格下方內容（含公式），輸出時照樣重建
 function rsFooterInfo() {
   const el = document.getElementById('rs-footer-info'); if (!el) return;
@@ -2112,6 +2126,7 @@ const csvRosterFormat = () => (document.querySelector('input[name="csv-fmt"]:che
 function csvRosterReadLayout(forTemplate) {   // 範本只存「不隨班次變動」的設定
   const L = { format: 'roster', title: rsEl('title').value.trim(), teacher: rsEl('teacher').value.trim(), notes: rsEl('notes').value, minRows: Math.max(1, Math.min(300, parseInt(rsEl('rows').value, 10) || 50)) };
   if (rosterFooter && rosterFooter.length) L.footer = rosterFooter;
+  if (rosterRoleCols) L.roleCols = rosterRoleCols;
   if (!forTemplate) { L.cls = rsEl('class').value.trim(); L.date = rsEl('date').value.trim(); L.place = rsEl('place').value.trim(); }
   return L;
 }
@@ -2121,6 +2136,7 @@ function csvRosterApplyLayout(L) {
   if (L.notes != null) rsEl('notes').value = L.notes;
   if (L.minRows) rsEl('rows').value = L.minRows;
   rosterFooter = (L.footer && L.footer.length) ? L.footer : null; rsFooterInfo();
+  rosterRoleCols = (L.roleCols && L.roleCols.length) ? L.roleCols : null; rsRoleInfo();
   if (L.cls != null) rsEl('class').value = L.cls;
   if (L.date != null) rsEl('date').value = L.date;
   if (L.place != null) rsEl('place').value = L.place;
@@ -2135,7 +2151,7 @@ function csvRosterSync() {
 function csvRosterInit(opts) {
   const show = opts.key === 'registrants';
   document.getElementById('csv-sort-row').style.display = show ? 'flex' : 'none';
-  { let sm = ''; try { sm = localStorage.getItem('csvSortMode') || ''; } catch (e) {} document.getElementById('csv-sort').value = show ? sm : ''; }
+  { let sm = ''; try { sm = localStorage.getItem('csvSortMode') || ''; } catch (e) {} document.getElementById('csv-sort').value = show ? (sm === 'time' ? 'time' : 'gender_role') : ''; }
   if (csvExtraState) { csvExtraState.sortTimes = opts.sortTimes || null; renderCsvExtraPreview(); }
   document.getElementById('csv-fmt-row').style.display = show ? 'block' : 'none';
   document.querySelector('input[name="csv-fmt"][value="plain"]').checked = true;
@@ -2147,10 +2163,11 @@ function csvRosterInit(opts) {
     rsEl('class').value = m.name || ''; rsEl('date').value = roc(m.date); rsEl('place').value = m.location || '';
     rsEl('teacher').value = saved.teacher || ''; rsEl('notes').value = saved.notes || ''; rsEl('rows').value = saved.minRows || 50;
   }
-  rosterFooter = null; rsFooterInfo();
+  rosterFooter = null; rsFooterInfo(); rosterRoleCols = null; rsRoleInfo();
   csvRosterSync();
 }
 document.querySelectorAll('input[name="csv-fmt"]').forEach(r => r.addEventListener('change', csvRosterSync));
+document.getElementById('rs-rolecols').addEventListener('change', (e) => { rosterRoleCols = e.target.checked ? ROLE_COLS.slice() : null; });
 
 const ROSTER_BASE = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', '備註'];
 function csvRosterMark(v) { v = String(v == null ? '' : v).trim(); return (!v || /^(否|無|沒有|不.*|no|n|false|0|x|-)$/i.test(v)) ? '' : 'V'; }
@@ -2164,18 +2181,20 @@ async function csvRosterBuild() {
   const ix = { name: find(/^姓名/), gender: find(/性別|乾坤/), altar: find(/佛堂/), role: find(/天職|職務/), stay: find(/住宿/), b: find(/早餐/), l: find(/午餐/), d: find(/晚餐/), note: find(/^備註/) };
   const val = (r, i) => (i >= 0 ? (r[i] == null ? '' : String(r[i])) : '');
   const extras = st.cols.filter(c => c.name.trim());
-  const nExtra = extras.length, lastCol = 9 + nExtra + 1;              // A..I 固定、自訂欄位、最後一欄「備註」
+  const roleCols = rosterRoleCols || [], nRole = roleCols.length;
+  const nExtra = extras.length, lastCol = 9 + nRole + nExtra + 1;              // A..I 固定、自訂欄位、最後一欄「備註」
   const noteCol = lastCol;
   const data = csvExtraOrder().map(ri => [st.rows[ri], ri]).map(([r, ri]) => [
     null, val(r, ix.altar), val(r, ix.name), val(r, ix.gender), val(r, ix.role),
     csvRosterMark(val(r, ix.stay)), csvRosterMark(val(r, ix.b)), csvRosterMark(val(r, ix.l)), csvRosterMark(val(r, ix.d)),
+    ...(nRole ? (() => { const hit = csvRoleColFor(val(r, ix.role), roleCols); return roleCols.map(c => (c === hit ? 'V' : '')); })() : []),
     ...extras.map(c => c.vals[ri] || ''), val(r, ix.note),
   ]);
   const N = Math.max(L.minRows, data.length);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet((L.cls || '名單').replace(/[\\/?*\[\]:]/g, '').slice(0, 30) || '名單', { pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
   const widths = [6.5, 9, 12, 6, 12.6, 7.4, 7.4, 7.4, 7.4];
-  for (let c = 1; c <= lastCol; c++) ws.getColumn(c).width = c <= 9 ? widths[c - 1] : (c === lastCol ? 18.5 : 12);
+  for (let c = 1; c <= lastCol; c++) ws.getColumn(c).width = c <= 9 ? widths[c - 1] : (c <= 9 + nRole ? 8.5 : (c === lastCol ? 18.5 : 12));
   const thin = { style: 'thin' }, box = { top: thin, left: thin, bottom: thin, right: thin };
   const cell = (r, c) => ws.getCell(r, c);
   ws.mergeCells(1, 1, 1, lastCol);
@@ -2186,7 +2205,7 @@ async function csvRosterBuild() {
   cell(3, 1).value = '地點：' + L.place;
   ws.mergeCells(3, 8, 3, lastCol); cell(3, 8).value = '負責點傳師:' + L.teacher;
   [[2, 1], [2, 5], [3, 1], [3, 8]].forEach(([r, c]) => { cell(r, c).font = { size: 12, name: 'Microsoft JhengHei' }; });
-  const heads = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', ...extras.map(c => c.name.trim()), '備註'];
+  const heads = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', ...roleCols, ...extras.map(c => c.name.trim()), '備註'];
   heads.forEach((h, i) => {
     const c = i + 1; ws.mergeCells(4, c, 5, c);
     const x = cell(4, c); x.value = h; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -2198,7 +2217,7 @@ async function csvRosterBuild() {
     for (let c = 1; c <= lastCol; c++) {
       const x = cell(r, c);
       x.value = c === 1 ? i + 1 : (row[c - 1] === undefined || row[c - 1] === '' ? null : row[c - 1]);
-      x.border = box; x.alignment = { horizontal: c === 1 || (c >= 4 && c <= 9) ? 'center' : 'left', vertical: 'middle', wrapText: true };
+      x.border = box; x.alignment = { horizontal: c === 1 || (c >= 4 && c <= 9 + nRole) ? 'center' : 'left', vertical: 'middle', wrapText: true };
       x.font = { size: 12, name: 'Microsoft JhengHei' };
     }
     ws.getRow(r).height = 21;
@@ -2275,7 +2294,10 @@ document.getElementById('rs-import-file').addEventListener('change', async (e) =
     L.title = (grid[1] || []).find(x => x) || '';
     for (let r = 1; r < hr; r++) (grid[r] || []).forEach(x => { const m = String(x || '').match(/^負責點傳師\s*[:：]\s*(.*)$/); if (m) L.teacher = m[1].trim(); });
     // 自訂欄位 = 表頭中不屬於固定欄位的名稱
-    const heads = (grid[hr] || []).map(x => String(x || '').replace(/\s+/g, '')).filter(Boolean).filter(h => !ROSTER_BASE.includes(h));
+    const allHeads = (grid[hr] || []).map(x => String(x || '').replace(/\s+/g, '')).filter(Boolean);
+    const roleHeads = allHeads.filter(h => ROLE_COLS.includes(h));
+    if (roleHeads.length) L.roleCols = roleHeads;       // 這些是格式本身的欄位（依天職自動打 V），不是自訂欄位
+    const heads = allHeads.filter(h => !ROSTER_BASE.includes(h) && !ROLE_COLS.includes(h));
     // 填表注意事項
     let nr = -1, nc = -1;
     grid.forEach((row, r) => (row || []).forEach((x, c) => { if (nr < 0 && /填表注意事項/.test(String(x || ''))) { nr = r; nc = c; } }));
@@ -2304,7 +2326,7 @@ document.getElementById('rs-import-file').addEventListener('change', async (e) =
     const st = csvExtraState;
     heads.forEach(h => { if (!st.cols.some(c => c.name.trim() === h)) st.cols.push({ name: h, def: '', vals: st.rows.map(() => ''), dirty: new Set() }); });
     renderCsvExtra();
-    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (footer.length ? '、表尾統計（' + footer.filter(x => x.f).length + ' 個公式）' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
+    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (roleHeads.length ? '、天職欄位（' + roleHeads.join('、') + '，依天職自動打 V）' : '') + (footer.length ? '、表尾統計（' + footer.filter(x => x.f).length + ' 個公式）' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
   } catch (err) { alert('匯入失敗：' + (err && err.message ? err.message : err)); }
 });
 
