@@ -1000,12 +1000,35 @@
         <button type="button" class="btn-cancel" id="csv-tpl-save-btn">另存為範本</button>
         <button type="button" class="btn-cancel" id="csv-tpl-del-btn" style="color:var(--red);">刪除範本</button>
       </div>
+      <div id="csv-fmt-row" style="display:none; margin-bottom:10px; padding:10px; border:1px solid var(--line); border-radius:8px;">
+        <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:14px;">
+          <strong>下載格式</strong>
+          <label style="display:flex; gap:4px; align-items:center;"><input type="radio" name="csv-fmt" value="plain" checked> 一般表格（CSV／PDF）</label>
+          <label style="display:flex; gap:4px; align-items:center;"><input type="radio" name="csv-fmt" value="roster"> 開班參加名單（Excel 表單格式）</label>
+        </div>
+        <div id="roster-opts" style="display:none; margin-top:10px;">
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; font-size:13px;">
+            <label>表單標題<input type="text" id="rs-title" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>班別<input type="text" id="rs-class" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>日期<input type="text" id="rs-date" placeholder="例：115/10/18" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>地點<input type="text" id="rs-place" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>負責點傳師<input type="text" id="rs-teacher" placeholder="例：林浴沂 點傳師" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>最少列數（不足以空白列補齊）<input type="number" id="rs-rows" min="1" max="300" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+          </div>
+          <label style="display:block; font-size:13px; margin-top:8px;">填表注意事項（每行一條，印在表格右側）<textarea id="rs-notes" rows="2" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea></label>
+          <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="btn-cancel" id="rs-import-btn">從 Excel 匯入範本…</button><input type="file" id="rs-import-file" accept=".xlsx" style="display:none;">
+            <span style="font-size:12px; color:var(--ink-soft);">讀取標題、負責點傳師、填表注意事項與自訂欄位；可再按「另存為範本」存起來。表單欄位固定為 序號／佛堂／姓名／性別／天職／住宿／早餐／午餐／晚餐／備註，對應不到的報名欄位不會輸出。</span>
+          </div>
+        </div>
+      </div>
       <div id="csv-extra-cols"></div>
       <button type="button" class="btn-cancel" id="csv-extra-add-btn" style="margin:6px 0 12px;">＋ 新增欄位</button>
       <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">預覽（藍底欄位可逐列修改；改過的格子不會再被「預設值」覆蓋）</div>
       <div style="max-height:38vh; overflow:auto; border:1px solid var(--line); border-radius:8px;" id="csv-extra-preview"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="csv-extra-cancel-btn">取消</button>
+        <button type="button" class="btn-new-event" id="csv-extra-xlsx-btn" style="background:#067A37; display:none;">下載 Excel（開班名單）</button>
         <button type="button" class="btn-new-event" id="csv-extra-pdf-btn" style="background:#B45309;">下載 PDF</button>
         <button type="button" class="btn-new-event" id="csv-extra-download-btn" style="background:var(--accent-dark);">下載 CSV</button>
       </div>
@@ -1899,6 +1922,7 @@ function openCsvExtraDialog(opts) { // { key, title, headers, rows, filename }
   };
   document.getElementById('csv-extra-sub').textContent = (opts.title || '') + '　共 ' + opts.rows.length + ' 筆。可在原有欄位後面加上自訂欄位（例：備註、簽到、車次），沒有要加就直接下載。';
   renderCsvExtra();
+  csvRosterInit(opts);
   document.getElementById('csv-extra-modal').classList.add('show');
   loadCsvTemplates();
 }
@@ -1916,12 +1940,15 @@ document.getElementById('csv-tpl-select').addEventListener('change', (e) => {
   const t = csvTemplates.find(x => x.id === e.target.value);
   if (!t) return;
   const st = csvExtraState;
-  st.cols = (t.columns || []).map(c => ({ name: c.name || '', def: c.def || '', vals: st.rows.map(() => c.def || ''), dirty: new Set() }));
+  st.cols = (t.columns || []).filter(c => !c.layout).map(c => ({ name: c.name || '', def: c.def || '', vals: st.rows.map(() => c.def || ''), dirty: new Set() }));
+  const lay = (t.columns || []).find(c => c.layout);
+  if (lay) csvRosterApplyLayout(lay.layout);
   renderCsvExtra();
 });
 document.getElementById('csv-tpl-save-btn').addEventListener('click', async () => {
   const cols = csvExtraState.cols.filter(c => c.name.trim()).map(c => ({ name: c.name.trim(), def: c.def || '' }));
-  if (cols.length === 0) { alert('請先新增至少一個有名稱的欄位。'); return; }
+  if (cols.length === 0 && csvRosterFormat() !== 'roster') { alert('請先新增至少一個有名稱的欄位。'); return; }
+  if (csvRosterFormat() === 'roster') cols.push({ layout: csvRosterReadLayout(true) });
   const sel = document.getElementById('csv-tpl-select');
   const current = csvTemplates.find(x => x.id === sel.value);
   const name = (prompt('範本名稱（同名會覆蓋）：', current ? current.name : '') || '').trim();
@@ -2016,6 +2043,170 @@ document.getElementById('csv-extra-download-btn').addEventListener('click', () =
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(a.href);
   document.getElementById('csv-extra-modal').classList.remove('show');
+});
+
+/* ---------- 開班參加名單（Excel 表單格式）---------- */
+const ROSTER_FIELDS = ['title', 'class', 'date', 'place', 'teacher', 'rows', 'notes'];
+const rsEl = (k) => document.getElementById('rs-' + k);
+const csvRosterFormat = () => (document.querySelector('input[name="csv-fmt"]:checked') || {}).value || 'plain';
+function csvRosterReadLayout(forTemplate) {   // 範本只存「不隨班次變動」的設定
+  const L = { format: 'roster', title: rsEl('title').value.trim(), teacher: rsEl('teacher').value.trim(), notes: rsEl('notes').value, minRows: Math.max(1, Math.min(300, parseInt(rsEl('rows').value, 10) || 50)) };
+  if (!forTemplate) { L.cls = rsEl('class').value.trim(); L.date = rsEl('date').value.trim(); L.place = rsEl('place').value.trim(); }
+  return L;
+}
+function csvRosterApplyLayout(L) {
+  if (L.title != null) rsEl('title').value = L.title;
+  if (L.teacher != null) rsEl('teacher').value = L.teacher;
+  if (L.notes != null) rsEl('notes').value = L.notes;
+  if (L.minRows) rsEl('rows').value = L.minRows;
+  if (L.cls != null) rsEl('class').value = L.cls;
+  if (L.date != null) rsEl('date').value = L.date;
+  if (L.place != null) rsEl('place').value = L.place;
+  document.querySelector('input[name="csv-fmt"][value="roster"]').checked = true;
+  csvRosterSync();
+}
+function csvRosterSync() {
+  const roster = csvRosterFormat() === 'roster' && csvExtraState && csvExtraState.key === 'registrants';
+  document.getElementById('roster-opts').style.display = roster ? 'block' : 'none';
+  document.getElementById('csv-extra-xlsx-btn').style.display = roster ? '' : 'none';
+}
+function csvRosterInit(opts) {
+  const show = opts.key === 'registrants';
+  document.getElementById('csv-fmt-row').style.display = show ? 'block' : 'none';
+  document.querySelector('input[name="csv-fmt"][value="plain"]').checked = true;
+  if (show) {
+    const m = opts.meta || {};
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('rosterLayout') || '{}'); } catch (e) {}
+    const roc = (d) => { const x = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return x ? (parseInt(x[1], 10) - 1911) + '/' + x[2] + '/' + x[3] : ''; };
+    rsEl('title').value = saved.title || '開班參加名單';
+    rsEl('class').value = m.name || ''; rsEl('date').value = roc(m.date); rsEl('place').value = m.location || '';
+    rsEl('teacher').value = saved.teacher || ''; rsEl('notes').value = saved.notes || ''; rsEl('rows').value = saved.minRows || 50;
+  }
+  csvRosterSync();
+}
+document.querySelectorAll('input[name="csv-fmt"]').forEach(r => r.addEventListener('change', csvRosterSync));
+
+const ROSTER_BASE = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', '備註'];
+function csvRosterMark(v) { v = String(v == null ? '' : v).trim(); return (!v || /^(否|無|沒有|不.*|no|n|false|0|x|-)$/i.test(v)) ? '' : 'V'; }
+
+async function csvRosterBuild() {
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', () => window.ExcelJS);
+  const st = csvExtraState, L = csvRosterReadLayout(false);
+  try { localStorage.setItem('rosterLayout', JSON.stringify(csvRosterReadLayout(true))); } catch (e) { /* ignore */ }
+  const H = st.headers.map(h => String(h).replace(/\s+/g, ''));
+  const find = (re) => H.findIndex(h => re.test(h));
+  const ix = { name: find(/^姓名/), gender: find(/性別|乾坤/), altar: find(/佛堂/), role: find(/天職|職務/), stay: find(/住宿/), b: find(/早餐/), l: find(/午餐/), d: find(/晚餐/), note: find(/^備註/) };
+  const val = (r, i) => (i >= 0 ? (r[i] == null ? '' : String(r[i])) : '');
+  const extras = st.cols.filter(c => c.name.trim());
+  const nExtra = extras.length, lastCol = 9 + nExtra + 1;              // A..I 固定、自訂欄位、最後一欄「備註」
+  const noteCol = lastCol;
+  const data = st.rows.map((r, ri) => [
+    null, val(r, ix.altar), val(r, ix.name), val(r, ix.gender), val(r, ix.role),
+    csvRosterMark(val(r, ix.stay)), csvRosterMark(val(r, ix.b)), csvRosterMark(val(r, ix.l)), csvRosterMark(val(r, ix.d)),
+    ...extras.map(c => c.vals[ri] || ''), val(r, ix.note),
+  ]);
+  const N = Math.max(L.minRows, data.length);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet((L.cls || '名單').replace(/[\\/?*\[\]:]/g, '').slice(0, 30) || '名單', { pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const widths = [6.5, 9, 12, 6, 12.6, 7.4, 7.4, 7.4, 7.4];
+  for (let c = 1; c <= lastCol; c++) ws.getColumn(c).width = c <= 9 ? widths[c - 1] : (c === lastCol ? 18.5 : 12);
+  const thin = { style: 'thin' }, box = { top: thin, left: thin, bottom: thin, right: thin };
+  const cell = (r, c) => ws.getCell(r, c);
+  ws.mergeCells(1, 1, 1, lastCol);
+  Object.assign(cell(1, 1), { value: L.title || '開班參加名單' });
+  cell(1, 1).font = { size: 22, bold: true, name: 'Microsoft JhengHei' }; cell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(1).height = 36;
+  cell(2, 1).value = '班別：' + L.cls; cell(2, 5).value = '日期：' + L.date;
+  cell(3, 1).value = '地點：' + L.place;
+  ws.mergeCells(3, 8, 3, lastCol); cell(3, 8).value = '負責點傳師:' + L.teacher;
+  [[2, 1], [2, 5], [3, 1], [3, 8]].forEach(([r, c]) => { cell(r, c).font = { size: 12, name: 'Microsoft JhengHei' }; });
+  const heads = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', ...extras.map(c => c.name.trim()), '備註'];
+  heads.forEach((h, i) => {
+    const c = i + 1; ws.mergeCells(4, c, 5, c);
+    const x = cell(4, c); x.value = h; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    x.font = { bold: true, size: 12, name: 'Microsoft JhengHei' }; x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    cell(4, c).border = box; cell(5, c).border = box;
+  });
+  for (let i = 0; i < N; i++) {
+    const r = 6 + i, row = data[i] || [];
+    for (let c = 1; c <= lastCol; c++) {
+      const x = cell(r, c);
+      x.value = c === 1 ? i + 1 : (row[c - 1] === undefined || row[c - 1] === '' ? null : row[c - 1]);
+      x.border = box; x.alignment = { horizontal: c === 1 || (c >= 4 && c <= 9) ? 'center' : 'left', vertical: 'middle', wrapText: true };
+      x.font = { size: 12, name: 'Microsoft JhengHei' };
+    }
+    ws.getRow(r).height = 21;
+  }
+  const last = 5 + N;
+  // 注意事項（表格右側）
+  const noteLines = String(L.notes || '').split(/\r?\n/).filter(x => x.trim());
+  if (noteLines.length) {
+    cell(6, lastCol + 2).value = '填表注意事項:';
+    noteLines.forEach((t, i) => { cell(7 + i, lastCol + 2).value = t; });
+    ws.getColumn(lastCol + 2).width = 60;
+  }
+  // 統計
+  const cnt = (col, t) => data.filter(r => r[col - 1] === t).length;
+  const D = '$D$6:$D$' + last, label = (r, c1, c2, text) => { ws.mergeCells(r, c1, r, c2); cell(r, c1).value = text; cell(r, c1).alignment = { horizontal: 'center' }; cell(r, c1).border = box; cell(r, c2).border = box; };
+  const num = (r, c, formula, result) => { const x = cell(r, c); x.value = { formula, result }; x.border = box; x.alignment = { horizontal: 'center' }; };
+  let r0 = last + 3;
+  label(r0, 1, 2, '乾'); num(r0, 3, `COUNTIF(${D},"乾")`, cnt(4, '乾')); label(r0, 7, 8, '坤'); num(r0, 9, `COUNTIF(${D},"坤")`, cnt(4, '坤'));
+  label(r0 + 1, 1, 2, '童'); num(r0 + 1, 3, `COUNTIF(${D},"童")`, cnt(4, '童')); label(r0 + 1, 7, 8, '女'); num(r0 + 1, 9, `COUNTIF(${D},"女")`, cnt(4, '女'));
+  label(r0 + 2, 1, 2, '乾、童總數'); num(r0 + 2, 3, `SUM(C${r0}:C${r0 + 1})`, cnt(4, '乾') + cnt(4, '童')); label(r0 + 2, 7, 8, '坤、女總數'); num(r0 + 2, 9, `SUM(I${r0}:I${r0 + 1})`, cnt(4, '坤') + cnt(4, '女'));
+  [['早餐', 7], ['午餐', 8], ['晚餐', 9]].forEach(([t, col], i) => {
+    const L2 = String.fromCharCode(64 + col), rr = r0 + 4 + i;
+    label(rr, 1, 2, t); num(rr, 3, `COUNTIF($${L2}$6:$${L2}$${last},"V")`, cnt(col, 'V'));
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+document.getElementById('csv-extra-xlsx-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('csv-extra-xlsx-btn'), old = btn.textContent;
+  btn.disabled = true; btn.textContent = '產生中…';
+  try {
+    csvExtraBuild();   // 同時記住自訂欄位
+    const blob = await csvRosterBuild();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = String(csvExtraState.filename || 'roster.csv').replace(/\.csv$/i, '') + '_開班參加名單.xlsx';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    document.getElementById('csv-extra-modal').classList.remove('show');
+  } catch (err) { alert('Excel 產生失敗：' + (err && err.message ? err.message : err)); }
+  finally { btn.disabled = false; btn.textContent = old; }
+});
+
+// 從「開班參加名單」xlsx 匯入範本：標題、負責點傳師、填表注意事項、自訂欄位
+document.getElementById('rs-import-btn').addEventListener('click', () => document.getElementById('rs-import-file').click());
+document.getElementById('rs-import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', () => window.ExcelJS);
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
+    const ws = wb.worksheets[0];
+    const txt = (c) => { const v = c && c.value; if (v == null) return ''; if (typeof v === 'object') return String(v.result != null ? v.result : (v.richText ? v.richText.map(x => x.text).join('') : (v.text || ''))); return String(v); };
+    const grid = []; ws.eachRow({ includeEmpty: true }, (row, rn) => { grid[rn] = []; row.eachCell({ includeEmpty: true }, (c, cn) => { grid[rn][cn] = txt(c).trim(); }); });
+    let hr = -1;
+    for (let r = 1; r < Math.min(grid.length, 12); r++) { const row = (grid[r] || []).map(x => String(x || '').replace(/\s+/g, '')); if (row.includes('序號') && row.includes('姓名')) { hr = r; break; } }
+    if (hr < 0) throw new Error('找不到含「序號、姓名」的表頭列。');
+    const L = {};
+    L.title = (grid[1] || []).find(x => x) || '';
+    for (let r = 1; r < hr; r++) (grid[r] || []).forEach(x => { const m = String(x || '').match(/^負責點傳師\s*[:：]\s*(.*)$/); if (m) L.teacher = m[1].trim(); });
+    // 自訂欄位 = 表頭中不屬於固定欄位的名稱
+    const heads = (grid[hr] || []).map(x => String(x || '').replace(/\s+/g, '')).filter(Boolean).filter(h => !ROSTER_BASE.includes(h));
+    // 填表注意事項
+    let nr = -1, nc = -1;
+    grid.forEach((row, r) => (row || []).forEach((x, c) => { if (nr < 0 && /填表注意事項/.test(String(x || ''))) { nr = r; nc = c; } }));
+    if (nr > 0) { const lines = []; for (let r = nr + 1; r < grid.length && grid[r] && String(grid[r][nc] || '').trim(); r++) lines.push(String(grid[r][nc]).trim()); L.notes = lines.join('\n'); }
+    // 序號列數
+    let n = 0; for (let r = hr + 2; r < grid.length; r++) { const a = (grid[r] || [])[1]; if (/^\d+$/.test(String(a || ''))) n = Math.max(n, parseInt(a, 10)); else if (n) break; }
+    if (n) L.minRows = n;
+    csvRosterApplyLayout(L);
+    const st = csvExtraState;
+    heads.forEach(h => { if (!st.cols.some(c => c.name.trim() === h)) st.cols.push({ name: h, def: '', vals: st.rows.map(() => ''), dirty: new Set() }); });
+    renderCsvExtra();
+    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
+  } catch (err) { alert('匯入失敗：' + (err && err.message ? err.message : err)); }
 });
 
 /* ---------- PDF export (same data + extra columns as the CSV) ----------
@@ -2162,7 +2353,8 @@ function exportCsv() {
   });
 
   const safeEventName = (currentEventName || 'event').replace(/[\\/:*?"<>|]/g, '_');
-  openCsvExtraDialog({ key: 'registrants', title: currentEventName || '報名名單', headers, rows,
+  const evRow = (allEvents || []).find(e => e.id === currentEventId) || {};
+  openCsvExtraDialog({ key: 'registrants', title: currentEventName || '報名名單', headers, rows, meta: { name: currentEventName || '', date: evRow.event_date || '', location: evRow.location || '' },
     filename: `${safeEventName}_報名名單_${new Date().toISOString().slice(0, 10)}.csv` });
 }
 
@@ -3647,12 +3839,22 @@ document.getElementById('saint-save-btn').addEventListener('click', async () => 
   const btn = document.getElementById('saint-save-btn'); btn.disabled = true; btn.textContent = '儲存中…';
   try {
     if (saintDeleted.length) { const { error } = await supabaseClient.from('calendar_entries').delete().in('id', saintDeleted); if (error) throw error; }
-    const old = rows.filter(r => r.id), fresh = rows.filter(r => !r.id).map(({ id, ...r }) => r);
-    if (old.length) { const { error } = await supabaseClient.from('calendar_entries').upsert(old, { onConflict: 'id' }); if (error) throw error; }
-    if (fresh.length) { const { error } = await supabaseClient.from('calendar_entries').insert(fresh); if (error) throw error; }
+    // 尚未執行 SQL 52（沒有 saint_name／saint_type 欄位）時，改存精簡欄位（標題已含「聖號 聖誕」），仍可儲存。
+    const write = async (slim) => {
+      const strip = (r) => { if (!slim) return r; const { saint_name, saint_type, ...rest } = r; return rest; };
+      const old = rows.filter(r => r.id).map(strip), fresh = rows.filter(r => !r.id).map(({ id, ...r }) => strip(r));
+      if (old.length) { const { error } = await supabaseClient.from('calendar_entries').upsert(old, { onConflict: 'id' }); if (error) throw error; }
+      if (fresh.length) { const { error } = await supabaseClient.from('calendar_entries').insert(fresh); if (error) throw error; }
+    };
+    let slimUsed = false;
+    try { await write(false); }
+    catch (e1) {
+      if (!/saint_name|saint_type|schema cache/i.test(String(e1 && e1.message))) throw e1;
+      slimUsed = true; await write(true);
+    }
     await loadSaintRows();
     if (document.getElementById('cal-modal').classList.contains('show')) loadCcal();
-    msg.style.color = '#067A37'; msg.textContent = '已儲存。';
+    msg.style.color = '#067A37'; msg.textContent = slimUsed ? '已儲存（資料庫尚未執行 SQL/52，聖號與聖誕／成道暫存在標題；之後執行 SQL/50 與 SQL/52 即可拆開）。' : '已儲存。';
   } catch (err) {
     msg.style.color = '#B91C1C';
     msg.textContent = '儲存失敗：' + (/duplicate|unique/i.test(err.message || '') ? '同一天已有相同名稱的紀念日。' : (err.message || err) + (/column|schema cache/i.test(err.message || '') ? '（請先執行 SQL/50 與 SQL/52）' : ''));
