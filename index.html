@@ -1004,22 +1004,22 @@
         <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; font-size:14px;">
           <strong>下載格式</strong>
           <label style="display:flex; gap:4px; align-items:center;"><input type="radio" name="csv-fmt" value="plain" checked> 一般表格（CSV／PDF）</label>
-          <label style="display:flex; gap:4px; align-items:center;"><input type="radio" name="csv-fmt" value="roster"> 開班參加名單（Excel 表單格式）</label>
+          <label style="display:flex; gap:4px; align-items:center;"><input type="radio" name="csv-fmt" value="roster"> 交通、住宿、用餐統計表（Excel）</label>
         </div>
         <div id="roster-opts" style="display:none; margin-top:10px;">
           <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; font-size:13px;">
             <label>表單標題<input type="text" id="rs-title" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
-            <label>班別<input type="text" id="rs-class" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
-            <label>日期<input type="text" id="rs-date" placeholder="例：115/10/18" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
-            <label>地點<input type="text" id="rs-place" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>副標題<input type="text" id="rs-subtitle" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>最少列數（不足依報名人數往下加）<input type="number" id="rs-rows" min="1" max="300" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
             <label>負責點傳師<input type="text" id="rs-teacher" placeholder="例：林浴沂 點傳師" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
-            <label>最少列數（不足以空白列補齊）<input type="number" id="rs-rows" min="1" max="300" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
+            <label>區域別<input type="text" id="rs-region" placeholder="例：蘭陽區" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box;"></label>
           </div>
-          <label style="display:block; font-size:13px; margin-top:8px;">填表注意事項（每行一條，印在表格右側）<textarea id="rs-notes" rows="2" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea></label>
+          <label style="display:block; font-size:13px; margin-top:8px;">填表注意事項（每行一條，印在表格右側，選填）<textarea id="rs-notes" rows="2" style="width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea></label>
+          <label style="display:flex; gap:6px; align-items:center; font-size:13px; margin-top:8px; color:var(--ink-soft);"><input type="checkbox" id="rs-stats" disabled> 帶入統計（統計項目待定義，尚未啟用）</label>
+          <div id="rs-info" style="font-size:12.5px; color:#067A37; margin-top:8px;"></div>
           <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button type="button" class="btn-cancel" id="rs-import-btn">從 Excel 匯入範本…</button><input type="file" id="rs-import-file" accept=".xlsx" style="display:none;">
-            <span id="rs-footer-info" style="font-size:12px; color:#067A37;"></span>
-            <span style="font-size:12px; color:var(--ink-soft);">讀取標題、負責點傳師、填表注意事項、自訂欄位與表格下方的統計公式；可再按「另存為範本」存起來。表單欄位固定為 序號／佛堂／姓名／性別／天職／住宿／早餐／午餐／晚餐／備註，對應不到的報名欄位不會輸出。</span>
+            <span style="font-size:12px; color:var(--ink-soft);">只讀序號列以上的標題、副標題、負責點傳師、區域別；欄位依報名欄位決定（火車、住宿、用餐），不從範本讀。</span>
           </div>
         </div>
       </div>
@@ -2101,47 +2101,22 @@ document.getElementById('csv-sort').addEventListener('change', (e) => {
   if (csvExtraState) renderCsvExtraPreview();
 });
 
-/* ---------- 開班參加名單（Excel 表單格式）---------- */
-const ROLE_COLS = ['點傳師', '壇主', '副壇主', '講師', '辦事人員', '道親', '班員', '補課', '旁聽', '小天使'];
-let rosterRoleCols = null;   // 依天職自動打 V 的欄位（表頭中的 點傳師／壇主／…），null = 不使用
-function rsRoleInfo() { const c = document.getElementById('rs-rolecols'); if (c) c.checked = !!rosterRoleCols; }
-// 天職文字 → 該列要打 V 的欄位名（完全相同優先，其次取最長的包含者，所以「副壇主」不會落到「壇主」）
-function csvRoleColFor(v, cols) {
-  v = String(v == null ? '' : v).replace(/\s+/g, '');
-  if (!v) return null;
-  if (v === '辦事員') v = '辦事人員';
-  if (cols.includes(v)) return v;
-  return cols.filter(c => v.includes(c)).sort((a, b) => b.length - a.length)[0] || null;
-}
-let rosterCells = null;    // 匯入範本時讀到的其他有值儲存格（表頭區、資料列公式、表格右側）
-let rosterFooter = null;   // 匯入範本時讀到的表格下方內容（含公式），輸出時照樣重建
-function rsFooterInfo() {
-  const el = document.getElementById('rs-footer-info'); if (!el) return;
-  el.innerHTML = rosterFooter ? '已套用匯入的表尾（' + rosterFooter.filter(x => x.f).length + ' 個公式、' + rosterFooter.filter(x => !x.f).length + ' 個文字格）　<a href="#" id="rs-footer-clear">改用預設統計</a>' : '';
-  const a = document.getElementById('rs-footer-clear'); if (a) a.onclick = (e) => { e.preventDefault(); rosterFooter = null; rsFooterInfo(); };
-}
-const ROSTER_FIELDS = ['title', 'class', 'date', 'place', 'teacher', 'rows', 'notes'];
+/* ---------- 交通、住宿、用餐統計表（Excel）----------
+   表頭欄位由「報名欄位」決定，不從範本讀：
+   - 「去程火車日期／去程火車車次」→「火車抵達」（日期、車次、時刻）；「回程…」→「火車離站」；
+     時刻由火車時刻表（train_schedule）以車次查出：抵達＝瑞穗站抵達時間，離站＝瑞穗站開車時間
+   - 「住宿」欄位（內宿／外宿）→ 內宿、外宿兩欄，選到的打 V；「10/5住宿」這類帶日期的欄位，
+     答案為「需要」者把「10/5住宿」寫進備註
+   - 「10/15早餐」「10/15午餐」「10/15晚餐」→ 依欄位名稱的日期分組成用餐欄，答案為「需要」打 V
+   匯入範本時只讀序號列以上的內容（標題、副標題、負責點傳師、區域別）。 */
 const rsEl = (k) => document.getElementById('rs-' + k);
 const csvRosterFormat = () => (document.querySelector('input[name="csv-fmt"]:checked') || {}).value || 'plain';
-function csvRosterReadLayout(forTemplate) {   // 範本只存「不隨班次變動」的設定
-  const L = { format: 'roster', title: rsEl('title').value.trim(), teacher: rsEl('teacher').value.trim(), notes: rsEl('notes').value, minRows: Math.max(1, Math.min(300, parseInt(rsEl('rows').value, 10) || 50)) };
-  if (rosterFooter && rosterFooter.length) L.footer = rosterFooter;
-  if (rosterRoleCols) L.roleCols = rosterRoleCols;
-  if (rosterCells && (rosterCells.head.length || rosterCells.body.length)) L.cells = rosterCells;
-  if (!forTemplate) { L.cls = rsEl('class').value.trim(); L.date = rsEl('date').value.trim(); L.place = rsEl('place').value.trim(); }
-  return L;
+function csvRosterReadLayout() {   // 範本只存「不隨班次變動」的設定
+  return { format: 'roster', title: rsEl('title').value.trim(), subtitle: rsEl('subtitle').value.trim(), teacher: rsEl('teacher').value.trim(), region: rsEl('region').value.trim(), notes: rsEl('notes').value, minRows: Math.max(1, Math.min(300, parseInt(rsEl('rows').value, 10) || 50)) };
 }
 function csvRosterApplyLayout(L) {
-  if (L.title != null) rsEl('title').value = L.title;
-  if (L.teacher != null) rsEl('teacher').value = L.teacher;
-  if (L.notes != null) rsEl('notes').value = L.notes;
+  ['title', 'subtitle', 'teacher', 'region', 'notes'].forEach(k => { if (L[k] != null) rsEl(k).value = L[k]; });
   if (L.minRows) rsEl('rows').value = L.minRows;
-  rosterFooter = (L.footer && L.footer.length) ? L.footer : null; rsFooterInfo();
-  rosterCells = (L.cells && ((L.cells.head || []).length || (L.cells.body || []).length)) ? L.cells : null;
-  rosterRoleCols = (L.roleCols && L.roleCols.length) ? L.roleCols : null; rsRoleInfo();
-  if (L.cls != null) rsEl('class').value = L.cls;
-  if (L.date != null) rsEl('date').value = L.date;
-  if (L.place != null) rsEl('place').value = L.place;
   document.querySelector('input[name="csv-fmt"][value="roster"]').checked = true;
   csvRosterSync();
 }
@@ -2160,118 +2135,144 @@ function csvRosterInit(opts) {
   if (show) {
     const m = opts.meta || {};
     let saved = {}; try { saved = JSON.parse(localStorage.getItem('rosterLayout') || '{}'); } catch (e) {}
-    const roc = (d) => { const x = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return x ? (parseInt(x[1], 10) - 1911) + '/' + x[2] + '/' + x[3] : ''; };
-    rsEl('title').value = saved.title || '開班參加名單';
-    rsEl('class').value = m.name || ''; rsEl('date').value = roc(m.date); rsEl('place').value = m.location || '';
-    rsEl('teacher').value = saved.teacher || ''; rsEl('notes').value = saved.notes || ''; rsEl('rows').value = saved.minRows || 50;
+    rsEl('title').value = saved.title || m.name || '';
+    rsEl('subtitle').value = saved.subtitle || '交通、住宿、用餐統計表';
+    rsEl('teacher').value = saved.teacher || ''; rsEl('region').value = saved.region || '';
+    rsEl('notes').value = saved.notes || ''; rsEl('rows').value = saved.minRows || 50;
+    rsEl('stats').checked = false;
+    rsInfo(opts.headers);
   }
-  rosterFooter = null; rsFooterInfo(); rosterRoleCols = null; rsRoleInfo(); rosterCells = null;
   csvRosterSync();
 }
 document.querySelectorAll('input[name="csv-fmt"]').forEach(r => r.addEventListener('change', csvRosterSync));
 
-const ROSTER_BASE = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', '備註'];
+// 「需要」「是」→ V；空白、否、不需要…→ 空
 function csvRosterMark(v) { v = String(v == null ? '' : v).trim(); return (!v || /^(否|無|沒有|不.*|no|n|false|0|x|-)$/i.test(v)) ? '' : 'V'; }
-
+// 依報名欄位名稱判斷這張表要有哪些欄位
+function rsAnalyze(headers) {
+  const H = headers.map(h => String(h).replace(/\s+/g, ''));
+  const find = (re) => H.findIndex(h => re.test(h));
+  const md = (h) => { const m = h.match(/(\d{1,2})\s*[\/月.\-]\s*(\d{1,2})\s*日?/); return m ? { m: +m[1], d: +m[2], text: (+m[1]) + '/' + (+m[2]) } : null; };
+  const p = { H, name: find(/^姓名/), gender: find(/性別|乾坤/), altar: find(/佛堂/), role: find(/天職|職務/), note: find(/^備註/),
+    goDate: find(/去程.*日期/), goNo: find(/去程.*車次/), backDate: find(/回程.*日期/), backNo: find(/回程.*車次/),
+    stay: find(/^住宿$/), stayDates: [], mealDays: [] };
+  p.hasGo = p.goDate >= 0 || p.goNo >= 0; p.hasBack = p.backDate >= 0 || p.backNo >= 0;
+  const meals = {};
+  H.forEach((h, i) => {
+    const d = md(h); if (!d) return;
+    if (/住宿/.test(h)) { p.stayDates.push(Object.assign({ i }, d)); return; }
+    const mm = h.match(/(早|午|晚)餐/);
+    if (mm) { const e = meals[d.text] = meals[d.text] || { d, types: {} }; e.types[mm[1] + '餐'] = i; }
+  });
+  const ord = (d) => d.m * 100 + d.d;
+  p.stayDates.sort((a, b) => ord(a) - ord(b));
+  p.mealDays = Object.values(meals).sort((a, b) => ord(a.d) - ord(b.d));
+  return p;
+}
+function rsInfo(headers) {
+  const el = document.getElementById('rs-info'); if (!el) return;
+  const p = rsAnalyze(headers || []), parts = [];
+  if (p.hasGo) parts.push('火車抵達'); if (p.hasBack) parts.push('火車離站');
+  if (p.stay >= 0) parts.push('內宿／外宿');
+  if (p.mealDays.length) parts.push('用餐 ' + p.mealDays.map(x => x.d.text).join('、'));
+  el.textContent = parts.length ? '依報名欄位帶入：' + parts.join('、') + (p.stayDates.length ? '；住宿日期寫入備註（' + p.stayDates.map(x => x.text).join('、') + '）' : '') : '這個活動的報名欄位沒有火車、住宿、用餐欄位，表單只有基本欄位。';
+}
+const rsTrainNo = (v) => { const m = String(v == null ? '' : v).trim().match(/^([0-9A-Za-z]+)/); return m ? m[1] : ''; };
+const rsDateText = (v) => { const s = String(v == null ? '' : v).trim(); const m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/); return m ? (+m[2]) + '/' + (+m[3]) : s; };
+async function rsTrainMap() {   // 車次 → { arrive, depart }（瑞穗站）
+  const map = {};
+  try {
+    const { data } = await supabaseClient.from('train_schedule').select('train_no, arrive_time, depart_time');
+    (data || []).forEach(t => { map[String(t.train_no).trim()] = { arrive: t.arrive_time || '', depart: t.depart_time || '' }; });
+  } catch (e) { /* 查不到就留白（抵達時間可從選項文字補） */ }
+  return map;
+}
 async function csvRosterBuild() {
   await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', () => window.ExcelJS);
-  const st = csvExtraState, L = csvRosterReadLayout(false);
-  try { localStorage.setItem('rosterLayout', JSON.stringify(csvRosterReadLayout(true))); } catch (e) { /* ignore */ }
-  const H = st.headers.map(h => String(h).replace(/\s+/g, ''));
-  const find = (re) => H.findIndex(h => re.test(h));
-  const ix = { name: find(/^姓名/), gender: find(/性別|乾坤/), altar: find(/佛堂/), role: find(/天職|職務/), stay: find(/住宿/), b: find(/早餐/), l: find(/午餐/), d: find(/晚餐/), note: find(/^備註/) };
+  const st = csvExtraState, L = csvRosterReadLayout();
+  try { localStorage.setItem('rosterLayout', JSON.stringify(L)); } catch (e) { /* ignore */ }
+  const p = rsAnalyze(st.headers), trains = (p.hasGo || p.hasBack) ? await rsTrainMap() : {};
   const val = (r, i) => (i >= 0 ? (r[i] == null ? '' : String(r[i])) : '');
   const extras = st.cols.filter(c => c.name.trim());
-  const roleCols = rosterRoleCols || [], nRole = roleCols.length;
-  const nExtra = extras.length, lastCol = 9 + nRole + nExtra + 1;              // A..I 固定、自訂欄位、最後一欄「備註」
-  const noteCol = lastCol;
-  const data = csvExtraOrder().map(ri => [st.rows[ri], ri]).map(([r, ri]) => [
-    null, val(r, ix.altar), val(r, ix.name), val(r, ix.gender), val(r, ix.role),
-    csvRosterMark(val(r, ix.stay)), csvRosterMark(val(r, ix.b)), csvRosterMark(val(r, ix.l)), csvRosterMark(val(r, ix.d)),
-    ...(nRole ? (() => { const hit = csvRoleColFor(val(r, ix.role), roleCols); return roleCols.map(c => (c === hit ? 'V' : '')); })() : []),
-    ...extras.map(c => c.vals[ri] || ''), val(r, ix.note),
-  ]);
+  const order = csvExtraOrder();
+  // ---- 欄位定義：leaf = { label, get(r, ri) }；group／sub 為表頭的上兩層 ----
+  const leaves = [];
+  const add = (label, get, group, sub, w) => leaves.push({ label, get, group: group || '', sub: sub || '', w: w || 8 });
+  add('序號', () => null, '', '', 5.5); add('佛堂', r => val(r, p.altar), '', '', 9); add('姓名', r => val(r, p.name), '', '', 10);
+  add('乾坤', r => val(r, p.gender), '', '', 6); add('天職', r => val(r, p.role), '', '', 10);
+  const timeOf = (r, noIdx, dateIdx, kind) => {
+    const raw = val(r, noIdx), no = rsTrainNo(raw); if (!no) return '';
+    const t = trains[no]; if (t && t[kind]) return t[kind];
+    if (kind === 'arrive') { const m = raw.match(/(\d{1,2}:\d{2})\s*抵達/); if (m) return m[1]; }
+    return '';
+  };
+  if (p.hasGo) { add('日期', r => rsDateText(val(r, p.goDate)), '交通', '火車抵達', 7); add('車次', r => rsTrainNo(val(r, p.goNo)), '交通', '火車抵達', 7); add('時刻', r => timeOf(r, p.goNo, p.goDate, 'arrive'), '交通', '火車抵達', 7.5); }
+  if (p.hasBack) { add('日期', r => rsDateText(val(r, p.backDate)), '交通', '火車離站', 7); add('車次', r => rsTrainNo(val(r, p.backNo)), '交通', '火車離站', 7); add('時刻', r => timeOf(r, p.backNo, p.backDate, 'depart'), '交通', '火車離站', 7.5); }
+  if (p.stay >= 0) { add('內宿', r => (/內/.test(val(r, p.stay)) ? 'V' : ''), '住宿', '', 5); add('外宿', r => (/外/.test(val(r, p.stay)) ? 'V' : ''), '住宿', '', 5); }
+  p.mealDays.forEach(day => ['早餐', '午餐', '晚餐'].forEach(t => { if (day.types[t] != null) add(t, r => csvRosterMark(val(r, day.types[t])), '用餐', day.d.text, 5.5); }));
+  extras.forEach(c => leaves.push({ label: c.name.trim(), get: (r, ri) => c.vals[ri] || '', group: '', sub: '', w: 12 }));
+  add('備註', r => {
+    const stayNote = p.stayDates.filter(s => csvRosterMark(val(r, s.i))).map(s => s.text + '住宿').join(', ');
+    return [stayNote, val(r, p.note)].filter(Boolean).join('；');
+  }, '', '', 20);
+  const lastCol = leaves.length;
+  const data = order.map(ri => leaves.map(l => l.get(st.rows[ri], ri)));
   const N = Math.max(L.minRows, data.length);
+
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet((L.cls || '名單').replace(/[\\/?*\[\]:]/g, '').slice(0, 30) || '名單', { pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-  const widths = [6.5, 9, 12, 6, 12.6, 7.4, 7.4, 7.4, 7.4];
-  for (let c = 1; c <= lastCol; c++) ws.getColumn(c).width = c <= 9 ? widths[c - 1] : (c <= 9 + nRole ? 8.5 : (c === lastCol ? 18.5 : 12));
+  const ws = wb.addWorksheet('統計表', { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  leaves.forEach((l, i) => { ws.getColumn(i + 1).width = l.w; });
   const thin = { style: 'thin' }, box = { top: thin, left: thin, bottom: thin, right: thin };
   const cell = (r, c) => ws.getCell(r, c);
-  ws.mergeCells(1, 1, 1, lastCol);
-  Object.assign(cell(1, 1), { value: L.title || '開班參加名單' });
-  cell(1, 1).font = { size: 22, bold: true, name: 'Microsoft JhengHei' }; cell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getRow(1).height = 36;
-  cell(2, 1).value = '班別：' + L.cls; cell(2, 5).value = '日期：' + L.date;
-  cell(3, 1).value = '地點：' + L.place;
-  ws.mergeCells(3, 8, 3, lastCol); cell(3, 8).value = '負責點傳師:' + L.teacher;
-  [[2, 1], [2, 5], [3, 1], [3, 8]].forEach(([r, c]) => { cell(r, c).font = { size: 12, name: 'Microsoft JhengHei' }; });
-  const heads = ['序號', '佛堂', '姓名', '性別', '天職', '住宿', '早餐', '午餐', '晚餐', ...roleCols, ...extras.map(c => c.name.trim()), '備註'];
-  heads.forEach((h, i) => {
-    const c = i + 1; ws.mergeCells(4, c, 5, c);
-    const x = cell(4, c); x.value = h; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    x.font = { bold: true, size: 12, name: 'Microsoft JhengHei' }; x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-    cell(4, c).border = box; cell(5, c).border = box;
-  });
+  const font = (size, bold) => ({ size, bold: !!bold, name: 'Microsoft JhengHei' });
+  ws.mergeCells(1, 1, 1, lastCol); cell(1, 1).value = L.title || ''; cell(1, 1).font = font(20, true); cell(1, 1).alignment = { horizontal: 'center', vertical: 'middle' }; ws.getRow(1).height = 34;
+  ws.mergeCells(2, 1, 2, lastCol); cell(2, 1).value = L.subtitle || ''; cell(2, 1).font = font(16, true); cell(2, 1).alignment = { horizontal: 'center', vertical: 'middle' }; ws.getRow(2).height = 26;
+  const tEnd = Math.min(7, Math.max(1, lastCol - 2));
+  ws.mergeCells(3, 1, 3, tEnd); cell(3, 1).value = '負責點傳師：' + (L.teacher || ''); cell(3, 1).font = font(12);
+  if (lastCol >= 4) { ws.mergeCells(3, lastCol - 1, 3, lastCol); cell(3, lastCol - 1).value = '區域別：' + (L.region || ''); cell(3, lastCol - 1).font = font(12); }
+  // ---- 表頭 4～6 列 ----
+  const head = (r1, c1, r2, c2, text) => {
+    if (r1 !== r2 || c1 !== c2) ws.mergeCells(r1, c1, r2, c2);
+    const x = cell(r1, c1); x.value = text; x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; x.font = font(12, true);
+    x.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+    for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) cell(r, c).border = box;
+  };
+  for (let i = 0; i < lastCol;) {
+    const l = leaves[i], c = i + 1;
+    if (!l.group) { head(4, c, 6, c, l.label); i++; continue; }
+    let j = i; while (j < lastCol && leaves[j].group === l.group) j++;
+    head(4, c, 4, j, l.group);
+    if (!l.sub) { for (let k = i; k < j; k++) head(5, k + 1, 6, k + 1, leaves[k].label); i = j; continue; }
+    for (let k = i; k < j;) {
+      let m = k; while (m < j && leaves[m].sub === leaves[k].sub) m++;
+      head(5, k + 1, 5, m, leaves[k].sub);
+      for (let q = k; q < m; q++) head(6, q + 1, 6, q + 1, leaves[q].label);
+      k = m;
+    }
+    i = j;
+  }
+  // ---- 資料列 ----
   for (let i = 0; i < N; i++) {
-    const r = 6 + i, row = data[i] || [];
+    const r = 7 + i, row = data[i] || [];
     for (let c = 1; c <= lastCol; c++) {
       const x = cell(r, c);
-      x.value = c === 1 ? i + 1 : (row[c - 1] === undefined || row[c - 1] === '' ? null : row[c - 1]);
-      x.border = box; x.alignment = { horizontal: c === 1 || (c >= 4 && c <= 9 + nRole) ? 'center' : 'left', vertical: 'middle', wrapText: true };
-      x.font = { size: 12, name: 'Microsoft JhengHei' };
+      x.value = c === 1 ? i + 1 : (row[c - 1] === undefined || row[c - 1] === '' || row[c - 1] === null ? null : row[c - 1]);
+      x.border = box; x.font = font(12);
+      x.alignment = { horizontal: (c <= 5 && c !== 3 && c !== 2) || c > 5 && leaves[c - 1].label !== '備註' ? 'center' : 'left', vertical: 'middle', wrapText: true };
     }
     ws.getRow(r).height = 21;
   }
-  const last = 5 + N;
-  // 注意事項（表格右側）
   const noteLines = String(L.notes || '').split(/\r?\n/).filter(x => x.trim());
   if (noteLines.length) {
-    cell(6, lastCol + 2).value = '填表注意事項:';
-    noteLines.forEach((t, i) => { cell(7 + i, lastCol + 2).value = t; });
+    cell(7, lastCol + 2).value = '填表注意事項:'; cell(7, lastCol + 2).font = font(12, true);
+    noteLines.forEach((t, i) => { cell(8 + i, lastCol + 2).value = t; cell(8 + i, lastCol + 2).font = font(12); });
     ws.getColumn(lastCol + 2).width = 60;
   }
-  // 匯入範本的其他有值儲存格：表頭區、資料列公式（每列各自套用）、表格右側
-  if (rosterCells) {
-    const putCell = (r, c, it) => {
-      if (it.span > 0) { try { ws.mergeCells(r, c, r, c + it.span); } catch (e) { /* 已合併 */ } }
-      cell(r, c).value = it.f ? { formula: it.f.replace(/\{R\}/g, r).replace(/\{([FL])([+-]\d+)?\}/g, (m, k, off) => String((k === 'F' ? 6 : last) + (off ? parseInt(off, 10) : 0))) } : it.v;
-      cell(r, c).font = { size: 12, name: 'Microsoft JhengHei' };
-    };
-    (rosterCells.head || []).forEach(it => putCell(it.r, it.c, it));
-    (rosterCells.body || []).forEach(it => { if (it.each) { for (let i = 0; i < N; i++) putCell(6 + i, it.c, it); } else if (it.dr < N) putCell(6 + it.dr, it.c, it); });
-  }
-  // 統計：匯入範本帶有表尾（含公式）時照樣重建；否則用預設統計
-  if (rosterFooter && rosterFooter.length) {
-    const FIRST = 6, LAST = last;
-    const toRef = (t) => t.replace(/\{([FL])([+-]\d+)?\}/g, (m, k, off) => String((k === 'F' ? FIRST : LAST) + (off ? parseInt(off, 10) : 0)));
-    rosterFooter.forEach(it => {
-      const r = LAST + it.dr, c = it.c;
-      if (it.span > 0) ws.mergeCells(r, c, r, c + it.span);
-      const x = cell(r, c);
-      x.value = it.f ? { formula: toRef(it.f) } : it.v;
-      for (let k = 0; k <= (it.span || 0); k++) cell(r, c + k).border = box;
-      x.alignment = { horizontal: 'center' }; x.font = { size: 12, name: 'Microsoft JhengHei' };
-    });
-    wb.calcProperties = { fullCalcOnLoad: true };
-    const buf0 = await wb.xlsx.writeBuffer();
-    return new Blob([buf0], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  }
-  // 統計
-  const cnt = (col, t) => data.filter(r => r[col - 1] === t).length;
-  const D = '$D$6:$D$' + last, label = (r, c1, c2, text) => { ws.mergeCells(r, c1, r, c2); cell(r, c1).value = text; cell(r, c1).alignment = { horizontal: 'center' }; cell(r, c1).border = box; cell(r, c2).border = box; };
-  const num = (r, c, formula, result) => { const x = cell(r, c); x.value = { formula, result }; x.border = box; x.alignment = { horizontal: 'center' }; };
-  let r0 = last + 3;
-  label(r0, 1, 2, '乾'); num(r0, 3, `COUNTIF(${D},"乾")`, cnt(4, '乾')); label(r0, 7, 8, '坤'); num(r0, 9, `COUNTIF(${D},"坤")`, cnt(4, '坤'));
-  label(r0 + 1, 1, 2, '童'); num(r0 + 1, 3, `COUNTIF(${D},"童")`, cnt(4, '童')); label(r0 + 1, 7, 8, '女'); num(r0 + 1, 9, `COUNTIF(${D},"女")`, cnt(4, '女'));
-  label(r0 + 2, 1, 2, '乾、童總數'); num(r0 + 2, 3, `SUM(C${r0}:C${r0 + 1})`, cnt(4, '乾') + cnt(4, '童')); label(r0 + 2, 7, 8, '坤、女總數'); num(r0 + 2, 9, `SUM(I${r0}:I${r0 + 1})`, cnt(4, '坤') + cnt(4, '女'));
-  [['早餐', 7], ['午餐', 8], ['晚餐', 9]].forEach(([t, col], i) => {
-    const L2 = String.fromCharCode(64 + col), rr = r0 + 4 + i;
-    label(rr, 1, 2, t); num(rr, 3, `COUNTIF($${L2}$6:$${L2}$${last},"V")`, cnt(col, 'V'));
-  });
+  ws.views = [{ state: 'frozen', ySplit: 6 }];
   const buf = await wb.xlsx.writeBuffer();
   return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+
 document.getElementById('csv-extra-xlsx-btn').addEventListener('click', async () => {
   const btn = document.getElementById('csv-extra-xlsx-btn'), old = btn.textContent;
   btn.disabled = true; btn.textContent = '產生中…';
@@ -2287,7 +2288,7 @@ document.getElementById('csv-extra-xlsx-btn').addEventListener('click', async ()
   finally { btn.disabled = false; btn.textContent = old; }
 });
 
-// 從「開班參加名單」xlsx 匯入範本：標題、負責點傳師、填表注意事項、自訂欄位
+// 從範本 xlsx 匯入：只讀「序號」那一列以上的內容（標題、副標題、負責點傳師、區域別）；欄位與統計不從範本讀
 document.getElementById('rs-import-btn').addEventListener('click', () => document.getElementById('rs-import-file').click());
 document.getElementById('rs-import-file').addEventListener('change', async (e) => {
   const file = e.target.files[0]; e.target.value = '';
@@ -2297,79 +2298,21 @@ document.getElementById('rs-import-file').addEventListener('change', async (e) =
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await file.arrayBuffer());
     const ws = wb.worksheets[0];
     const txt = (c) => { const v = c && c.value; if (v == null) return ''; if (typeof v === 'object') return String(v.result != null ? v.result : (v.richText ? v.richText.map(x => x.text).join('') : (v.text || ''))); return String(v); };
-    const grid = []; ws.eachRow({ includeEmpty: true }, (row, rn) => { grid[rn] = []; row.eachCell({ includeEmpty: true }, (c, cn) => { grid[rn][cn] = txt(c).trim(); }); });
+    const grid = []; ws.eachRow({ includeEmpty: true }, (row, rn) => { if (rn > 15) return; grid[rn] = []; row.eachCell({ includeEmpty: true }, (c, cn) => { grid[rn][cn] = (c.isMerged && c.master && c.master.address !== c.address) ? '' : txt(c).trim(); }); });
     let hr = -1;
-    for (let r = 1; r < Math.min(grid.length, 12); r++) { const row = (grid[r] || []).map(x => String(x || '').replace(/\s+/g, '')); if (row.includes('序號') && row.includes('姓名')) { hr = r; break; } }
+    for (let r = 1; r <= Math.min(grid.length - 1, 15); r++) { const row = (grid[r] || []).map(x => String(x || '').replace(/\s+/g, '')); if (row.includes('序號') && row.includes('姓名')) { hr = r; break; } }
     if (hr < 0) throw new Error('找不到含「序號、姓名」的表頭列。');
+    const first = (r) => ((grid[r] || []).find(x => x && String(x).trim()) || '').trim();
     const L = {};
-    L.title = (grid[1] || []).find(x => x) || '';
-    for (let r = 1; r < hr; r++) (grid[r] || []).forEach(x => { const m = String(x || '').match(/^負責點傳師\s*[:：]\s*(.*)$/); if (m) L.teacher = m[1].trim(); });
-    // 自訂欄位 = 表頭中不屬於固定欄位的名稱
-    const allHeads = (grid[hr] || []).map(x => String(x || '').replace(/\s+/g, '')).filter(Boolean);
-    const roleHeads = allHeads.filter(h => ROLE_COLS.includes(h));
-    if (roleHeads.length) L.roleCols = roleHeads;       // 這些是格式本身的欄位（依天職自動打 V），不是自訂欄位
-    const heads = allHeads.filter(h => !ROSTER_BASE.includes(h) && !ROLE_COLS.includes(h));
-    // 填表注意事項
-    let nr = -1, nc = -1;
-    grid.forEach((row, r) => (row || []).forEach((x, c) => { if (nr < 0 && /填表注意事項/.test(String(x || ''))) { nr = r; nc = c; } }));
-    if (nr > 0) { const lines = []; for (let r = nr + 1; r < grid.length && grid[r] && String(grid[r][nc] || '').trim(); r++) lines.push(String(grid[r][nc]).trim()); L.notes = lines.join('\n'); }
-    // 序號列數
-    let n = 0; for (let r = hr + 2; r < grid.length; r++) { const a = (grid[r] || [])[1]; if (/^\d+$/.test(String(a || ''))) n = Math.max(n, parseInt(a, 10)); else if (n) break; }
-    if (n) L.minRows = n;
-    // 表格下方（序號之後）的文字與公式：公式中的列號轉成相對於「資料首列／末列」的記號，之後依實際列數重建
-    const firstR = hr + 2, lastR = hr + 1 + (n || 0);
-    const tok = (f) => f.replace(/(\$?[A-Z]{1,3}\$?)(\d+)/g, (m, col, row) => { row = +row; return col + (row === lastR ? '{L+0}' : row < lastR ? '{F' + (row - firstR >= 0 ? '+' : '') + (row - firstR) + '}' : '{L+' + (row - lastR) + '}'); });
-    const spans = {}; (ws.model.merges || []).forEach(rg => { const m = String(rg).match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/); if (m && m[2] === m[4]) { const col = (a) => a.split('').reduce((x, ch) => x * 26 + ch.charCodeAt(0) - 64, 0); spans[m[2] + ':' + col(m[1])] = col(m[3]) - col(m[1]); } });
-    const footer = [];
-    if (n) ws.eachRow({ includeEmpty: false }, (row, rn) => {
-      if (rn <= lastR) return;
-      row.eachCell({ includeEmpty: false }, (c, cn) => {
-        const f = c.formula || (c.value && typeof c.value === 'object' && (c.value.formula || c.value.sharedFormula)) || null;
-        const v = txt(c).trim();
-        if (!f && !v) return;
-        const it = { dr: rn - lastR, c: cn, span: spans[rn + ':' + cn] || 0 };
-        if (f) it.f = tok(String(f)); else it.v = v;
-        footer.push(it);
-      });
+    if (hr > 1) L.title = first(1);
+    if (hr > 2) { const t = first(2); if (!/^(負責點傳師|區域別)/.test(t)) L.subtitle = t; }
+    for (let r = 1; r < hr; r++) (grid[r] || []).forEach(x => {
+      const t = String(x || '').trim(); let m;
+      if ((m = t.match(/^負責點傳師\s*[:：]\s*(.*)$/))) L.teacher = m[1].trim();
+      if ((m = t.match(/^區域別\s*[:：]\s*(.*)$/))) L.region = m[1].trim();
     });
-    L.footer = footer;
-    // 其他有值的儲存格：表頭區（標題／班別／日期／地點／負責點傳師以外）、資料列中的公式、表格右側（注意事項以外）
-    const lastHeadCol = (grid[hr] || []).reduce((m, x, i) => (String(x || '').trim() ? Math.max(m, i) : m), 0);
-    const cellOf = (c) => { const f = c.formula || (c.value && typeof c.value === 'object' && (c.value.formula || c.value.sharedFormula)) || null; return { f: f ? String(f) : null, v: txt(c).trim() }; };
-    const head = [], bodyRaw = [];
-    ws.eachRow({ includeEmpty: false }, (row, rn) => {
-      if (rn >= hr && rn <= hr + 1) return;
-      row.eachCell({ includeEmpty: false }, (c, cn) => {
-        if (c.isMerged && c.master && c.master.address !== c.address) return;   // 合併儲存格只取左上角
-        const { f, v } = cellOf(c); if (!f && !v) return;
-        const span = spans[rn + ':' + cn] || 0;
-        if (rn < hr) {
-          if (/^(班別|日期|地點|負責點傳師)\s*[:：]/.test(v) || (rn === 1 && cn === 1)) return;
-          head.push(f ? { r: rn, c: cn, span, f: tok(f) } : { r: rn, c: cn, span, v });
-        } else if (rn >= firstR && rn <= lastR) {
-          const inNotes = nc > 0 && cn === nc && rn >= nr;
-          if (inNotes) return;
-          if (f || cn > lastHeadCol) {
-            const rowTok = (g) => g.replace(/(\$?[A-Z]{1,3}\$?)(\d+)/g, (m, col, rw) => (+rw === rn ? col + '{R}' : tok(m)));
-            bodyRaw.push({ dr: rn - firstR, c: cn, span, f: f ? rowTok(f) : null, v });
-          }
-        }
-      });
-    });
-    // 同一欄每一列都是同樣公式 → 視為「整欄公式」，列數改變時也會填滿
-    const body = [], byCol = {};
-    bodyRaw.forEach(it => { (byCol[it.c] = byCol[it.c] || []).push(it); });
-    Object.values(byCol).forEach(arr => {
-      if (arr.every(x => x.f) && arr.length >= Math.max(2, n) && new Set(arr.map(x => x.f)).size === 1) body.push({ each: true, c: arr[0].c, span: arr[0].span, f: arr[0].f });
-      else arr.forEach(x => body.push(x.f ? { dr: x.dr, c: x.c, span: x.span, f: x.f } : { dr: x.dr, c: x.c, span: x.span, v: x.v }));
-    });
-    L.cells = { head, body };
-    const nCells = head.length + body.length;
     csvRosterApplyLayout(L);
-    const st = csvExtraState;
-    heads.forEach(h => { if (!st.cols.some(c => c.name.trim() === h)) st.cols.push({ name: h, def: '', vals: st.rows.map(() => ''), dirty: new Set() }); });
-    renderCsvExtra();
-    alert('已匯入範本設定：標題「' + (L.title || '') + '」' + (L.teacher ? '、負責點傳師' : '') + (L.notes ? '、填表注意事項' : '') + (roleHeads.length ? '、天職欄位（' + roleHeads.join('、') + '，依天職自動打 V）' : '') + (nCells ? '、其他有值儲存格 ' + nCells + ' 個（含公式 ' + [...head, ...body].filter(x => x.f).length + ' 個）' : '') + (footer.length ? '、表尾統計（' + footer.filter(x => x.f).length + ' 個公式）' : '') + (heads.length ? '、自訂欄位 ' + heads.join('、') : '') + '。\n可按「另存為範本」存起來，之後直接套用。');
+    alert('已匯入範本設定（只讀序號列以上）：' + [L.title && '標題', L.subtitle && '副標題', L.teacher != null && '負責點傳師', L.region != null && '區域別'].filter(Boolean).join('、') + '。\n欄位由報名欄位決定，不從範本讀取。可按「另存為範本」存起來。');
   } catch (err) { alert('匯入失敗：' + (err && err.message ? err.message : err)); }
 });
 
@@ -2809,6 +2752,14 @@ function addFieldBuilderRow(prefill) {
   const typeSelect = wrap.querySelector('.fb-type');
   const optionsInput = wrap.querySelector('.fb-options');
   const togglePreset = wrap.querySelector('.fb-toggle-preset');
+  // 欄位名稱為「住宿」時，自動改成下拉選單並帶入選項「內宿、外宿」（匯出統計表會轉成內宿／外宿欄的 V）
+  const labelInput = wrap.querySelector('.fb-label');
+  labelInput.addEventListener('change', () => {
+    if (labelInput.value.replace(/\s+/g, '') !== '住宿') return;
+    typeSelect.value = 'select';
+    if (!optionsInput.value.trim()) optionsInput.value = '內宿,外宿';
+    syncFieldTypeUI();
+  });
 
   // Pre-select the matching toggle preset if editing an existing toggle field
   if (prefill && prefill.type === 'toggle' && prefill.options) {
