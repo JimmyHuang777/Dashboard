@@ -459,6 +459,7 @@
           <button type="button" class="dropdown-item" id="manage-calendar-btn">行事曆 Calendar</button>
           <button type="button" class="dropdown-item" id="manage-trains-btn">🚆 火車時刻 Train Schedule</button>
           <button type="button" class="dropdown-item" id="manage-saints-btn">🕯 仙佛紀念日 Saint Days</button>
+          <button type="button" class="dropdown-item" id="manage-dispatch-btn">🤖 自動派工 Auto-dispatch</button>
           <button type="button" class="dropdown-item" id="manage-profiles-btn">成員資料 Member Profiles</button>
           <button type="button" class="dropdown-item" id="manage-admin-roles-btn">管理員角色 Admin Roles</button>
           <button type="button" class="dropdown-item" id="manage-perms-btn">管理者權限 Admin Permissions</button>
@@ -534,6 +535,11 @@
         <div class="modal-field">
           <label>所屬壇 Altar <span class="modal-hint" style="margin:0;">選填，選定後該壇及其下層壇都能看到；上層壇的活動也會自動出現在下層壇</span></label>
           <select id="ne-altar"><option value="">（不限定壇）</option></select>
+        </div>
+
+        <div class="modal-field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;"><input type="checkbox" id="ne-transport"> 🚗 提供交通（共乘）</label>
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="checkbox" id="ne-lodging"> 🏠 提供住宿</label>
         </div>
 
         <div class="modal-field">
@@ -1392,6 +1398,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="dp-modal" style="z-index:330;">
+    <div class="modal-box" style="max-width: 1040px; width: 96vw;">
+      <h2>🤖 自動派工 Auto-dispatch</h2>
+      <p class="modal-sub">行事曆項目、仙佛紀念日、農曆初一十五到了「提前天數」時，系統每天早上 6:00（台灣時間）自動：複製範本活動建立報名表、依工作清單建立工作並指定群組、再推送 LINE 通知。同一來源不會重複派送。</p>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+        <div class="tabs-row" id="dp-tabs" style="margin:0;">
+          <button type="button" class="tabs-row-btn active" data-tab="rules">派工規則</button>
+          <button type="button" class="tabs-row-btn" data-tab="log">派工紀錄</button>
+        </div>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-text" id="dp-preview-btn">預覽今天會派什麼</button>
+        <button type="button" class="btn-new-event" id="dp-run-btn">立即執行</button>
+      </div>
+      <div id="dp-msg" style="font-size:13px; min-height:18px; margin-bottom:8px;"></div>
+      <div id="dp-body"></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="dp-close-btn">關閉</button></div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="meetings-modal">
     <div class="modal-box" style="max-width: 1040px; width: 96vw;">
       <h2>🗣️ 溝通共識 Meetings</h2>
@@ -1489,6 +1514,21 @@
       <div id="tx-body" style="max-height:62vh; overflow:auto;"></div>
       <div id="tx-msg" style="font-size:13px; margin-top:8px;"></div>
       <div class="modal-actions"><button type="button" class="btn-cancel" id="tx-close-btn">關閉</button></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="kt-modal" style="z-index:340;">
+    <div class="modal-box" style="max-width: 980px; width: 96vw;">
+      <h2 id="kt-title">天廚</h2>
+      <p class="modal-sub">這個壇的食譜、菜單與天廚工作。組員在 LINE 的天廚頁面看菜單、認領工作；這裡的修改與 LINE 頁面共用同一份資料。</p>
+      <div class="tabs-row" id="kt-tabs" style="flex-wrap:wrap;">
+        <button type="button" class="tabs-row-btn active" data-tab="recipes">食譜</button>
+        <button type="button" class="tabs-row-btn" data-tab="menus">菜單</button>
+        <button type="button" class="tabs-row-btn" data-tab="tasks">工作</button>
+      </div>
+      <div id="kt-msg" style="font-size:13px; min-height:18px; margin-bottom:8px;"></div>
+      <div id="kt-body" style="max-height:58vh; overflow:auto;"></div>
+      <div class="modal-actions"><button type="button" class="btn-cancel" id="kt-close-btn">關閉</button></div>
     </div>
   </div>
 
@@ -2879,6 +2919,8 @@ async function openEventModal(eventToEdit) {
   renderEventGroupCheckboxes(checkedGroupIds);
 
   document.getElementById('ne-featured').checked = !!(eventToEdit && eventToEdit.is_featured);
+  document.getElementById('ne-transport').checked = !!(eventToEdit && eventToEdit.offers_transport);
+  document.getElementById('ne-lodging').checked = !!(eventToEdit && eventToEdit.offers_lodging);
   await loadAltarsForPicker(document.getElementById('ne-altar'), eventToEdit ? (eventToEdit.altar_id || '') : '');
 
   document.getElementById('new-event-modal').classList.add('show');
@@ -2997,13 +3039,15 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
   const editingId = document.getElementById('ne-editing-id').value;
   const altar_id = document.getElementById('ne-altar').value || null;
   const is_featured = document.getElementById('ne-featured').checked;
+  const offers_transport = document.getElementById('ne-transport').checked;
+  const offers_lodging = document.getElementById('ne-lodging').checked;
   submitBtn.disabled = true;
 
   if (editingId) {
     submitBtn.textContent = '儲存中…';
     const { error: updateErr } = await supabaseClient
       .from('events')
-      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id, is_featured })
+      .update({ name, event_date: date, location, description, form_schema: formSchema, altar_id, is_featured, offers_transport, offers_lodging })
       .eq('id', editingId);
 
     submitBtn.disabled = false;
@@ -3029,7 +3073,7 @@ document.getElementById('new-event-form').addEventListener('submit', async (e) =
 
   const { data, error } = await supabaseClient
     .from('events')
-    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id, is_featured })
+    .insert({ name, event_date: date, location, slug, description, form_schema: formSchema, altar_id, is_featured, offers_transport, offers_lodging })
     .select()
     .single();
 
@@ -5549,8 +5593,11 @@ async function mtInstInit() {
       <label>到 <input type="date" id="mti-to" class="mt-in" value="${mtAddDays(today, 60)}"></label>
       <label>類型 <select id="mti-type" class="mt-in"><option value="">全部</option>${mtState.types.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></label>
       <label>狀態 <select id="mti-status" class="mt-in"><option value="">全部</option>${Object.entries(MT_STATUS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
-      <button type="button" class="btn-new-event" id="mti-go">查詢</button></div><div id="mti-list"></div>`;
+      <button type="button" class="btn-new-event" id="mti-go">查詢</button>
+      <span style="flex:1;"></span>
+      <button type="button" class="btn-cancel" id="mti-adhoc" style="padding:8px 14px;">＋ 新增臨時會議</button></div><div id="mti-list"></div>`;
   mtEl('mti-go').addEventListener('click', mtInstLoad);
+  mtEl('mti-adhoc').addEventListener('click', mtAdhocForm);
   await mtInstLoad();
 }
 async function mtInstLoad() {
@@ -5638,6 +5685,42 @@ async function mtInstOpen(id, backTab) {
       if (error) fail(error); else reload();
     });
   } catch (e) { mtMsg('載入失敗：' + (e.message || e), true); }
+}
+
+// 臨時會議：沒有排定也能直接記錄。做法＝建立一個「單次」會議類型＋當天場次（和排定的會議走同一套資料，
+// 所以統計、LINE 頁面、出席／待辦都照常運作）。
+async function mtAdhocForm() {
+  mtMsg('');
+  if (!mtState.groups.length) { const { data } = await supabaseClient.from('task_groups').select('id, name').order('name', { ascending: true }); mtState.groups = data || []; }
+  mtEl('mt-body').innerHTML = `<h3 style="margin:0 0 4px;">新增臨時會議</h3>
+    <div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px;">沒有排定的會議也能記錄：建立後直接進入該場，填寫紀錄、出席與待辦事項。日期可以是過去（補記錄）。</div>
+    <div class="field-row">
+      <div class="modal-field"><label>會議名稱</label><input type="text" id="mta-name" placeholder="例：臨時道務會議"></div>
+      <div class="modal-field"><label>日期</label><input type="date" id="mta-date" value="${mtToday()}"></div>
+    </div>
+    <div class="field-row">
+      <div class="modal-field"><label>地點（選填）</label><input type="text" id="mta-place"></div>
+      <div class="modal-field"><label>邀請群組（選填，出席者自動帶入群組成員）</label><select id="mta-group" class="mt-in" style="width:100%;"><option value="">（不邀請，之後不顯示在成員的「我的會議」）</option>${mtState.groups.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join('')}</select></div>
+    </div>
+    <div style="display:flex; gap:10px;"><button type="button" class="btn-cancel" id="mta-cancel" style="padding:10px 18px;">取消</button><button type="button" class="btn-new-event" id="mta-save">建立並開啟</button></div>`;
+  mtEl('mta-cancel').addEventListener('click', () => mtShowTab('inst'));
+  mtEl('mta-save').addEventListener('click', async () => {
+    const name = mtEl('mta-name').value.trim(), date = mtEl('mta-date').value;
+    if (!name) { mtMsg('請填寫會議名稱。', true); return; }
+    if (!date) { mtMsg('請選擇日期。', true); return; }
+    mtEl('mta-save').disabled = true;
+    try {
+      const { data: type, error } = await supabaseClient.from('meeting_types').insert({
+        name, recurrence: 'once', recurrence_detail: {}, start_date: date, end_date: date,
+        group_id: mtEl('mta-group').value || null, place: mtEl('mta-place').value.trim() || null, is_active: true,
+      }).select().single();
+      if (error) throw error;
+      await supabaseClient.rpc('ensure_meeting_instances', { p_from: date, p_to: date });
+      const { data: inst, error: e2 } = await supabaseClient.from('meeting_instances').select('id').eq('meeting_type_id', type.id).eq('meeting_date', date).single();
+      if (e2) throw e2;
+      mtInstOpen(inst.id, 'inst');
+    } catch (e) { mtMsg('建立失敗：' + (e.message || e), true); mtEl('mta-save').disabled = false; }
+  });
 }
 
 /* ===== 3. 待辦事項總覽（所有人）===== */
@@ -6337,6 +6420,207 @@ document.getElementById('altar-create-btn').addEventListener('click', async () =
   await loadAltarsList();
 });
 
+/* ---------- 天廚管理（食譜／菜單／工作）---------- */
+// 超級管理者直接讀寫 kitchen_* 資料表（SQL 33 的 RLS）；LIFF 的 kitchen.html 走 kitchen-api，資料相同。
+const KT_MEAL = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', none: '不指定' };
+const KT_STATUS = { open: '尚未認領', claimed: '已認領', done: '已完成' };
+const ktState = { altar: null, tab: 'recipes', recipes: [], members: [] };
+const ktEl = (id) => document.getElementById(id);
+function ktMsg(text, isErr) { const m = ktEl('kt-msg'); m.textContent = text || ''; m.style.color = isErr ? 'var(--red)' : 'var(--ink-soft)'; }
+
+function ktOpen(altar) {
+  ktState.altar = altar;
+  ktEl('kt-title').textContent = '🍳 天廚 — ' + altar.name;
+  ktEl('kt-modal').classList.add('show');
+  ktTab('recipes');
+}
+ktEl('kt-close-btn').addEventListener('click', () => ktEl('kt-modal').classList.remove('show'));
+document.querySelectorAll('#kt-tabs .tabs-row-btn').forEach(b => b.addEventListener('click', () => ktTab(b.dataset.tab)));
+function ktTab(tab) {
+  ktState.tab = tab; ktMsg('');
+  document.querySelectorAll('#kt-tabs .tabs-row-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  ({ recipes: ktRecipes, menus: ktMenus, tasks: ktTasks }[tab])().catch(e => ktMsg('載入失敗：' + (e.message || e), true));
+}
+async function ktLoadRecipes() {
+  const { data, error } = await supabaseClient.from('kitchen_recipes').select('*').eq('altar_id', ktState.altar.id).order('name', { ascending: true });
+  if (error) throw error;
+  ktState.recipes = data || [];
+}
+async function ktLoadMembers() {
+  const { data, error } = await supabaseClient.from('altar_team_members').select('user_id, role, users(display_name)').eq('altar_id', ktState.altar.id).eq('team', 'kitchen');
+  if (error) throw error;
+  ktState.members = (data || []).map(m => ({ user_id: m.user_id, role: m.role, name: m.users?.display_name || '—' }));
+}
+
+/* ===== 食譜 ===== */
+async function ktRecipes() {
+  ktEl('kt-body').innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  await ktLoadRecipes();
+  const rows = ktState.recipes.map(r => `<tr data-id="${r.id}"><td><b>${escapeHtml(r.name)}</b></td><td>${r.servings ? r.servings + ' 人份' : ''}</td>
+    <td style="color:var(--ink-soft); max-width:360px;">${escapeHtml((r.ingredients || '').split('\n')[0].slice(0, 60))}</td>
+    <td style="white-space:nowrap;"><button type="button" class="btn-text kt-r-edit">編輯</button><button type="button" class="btn-text kt-r-del" style="color:var(--red);">刪除</button></td></tr>`).join('');
+  ktEl('kt-body').innerHTML = `<div style="margin-bottom:10px;"><button type="button" class="btn-new-event" id="kt-r-add">＋ 新增食譜</button></div>
+    ${ktState.recipes.length ? `<table class="mt-table"><thead><tr><th>名稱</th><th>份量</th><th>食材</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<div style="color:var(--ink-soft);">這個壇還沒有食譜。</div>'}`;
+  ktEl('kt-r-add').addEventListener('click', () => ktRecipeForm(null));
+  ktEl('kt-body').querySelectorAll('.kt-r-edit').forEach(b => b.addEventListener('click', () => ktRecipeForm(ktState.recipes.find(r => r.id === b.closest('tr').dataset.id))));
+  ktEl('kt-body').querySelectorAll('.kt-r-del').forEach(b => b.addEventListener('click', async () => {
+    const r = ktState.recipes.find(x => x.id === b.closest('tr').dataset.id);
+    if (!confirm(`確定要刪除食譜「${r.name}」嗎？\n\n已排進菜單的這道食譜也會從菜單中移除。`)) return;
+    const { error } = await supabaseClient.from('kitchen_recipes').delete().eq('id', r.id);
+    if (error) { ktMsg('刪除失敗：' + error.message, true); return; }
+    ktRecipes();
+  }));
+}
+function ktRecipeForm(r) {
+  ktEl('kt-body').innerHTML = `<h3 style="margin:0 0 12px;">${r ? '編輯' : '新增'}食譜</h3>
+    <div class="field-row">
+      <div class="modal-field"><label>食譜名稱</label><input type="text" id="ktf-name" value="${escapeHtml(r?.name || '')}"></div>
+      <div class="modal-field"><label>份量（人份，選填）</label><input type="number" id="ktf-servings" min="1" value="${r?.servings || ''}"></div>
+    </div>
+    <div class="modal-field"><label>食材</label><textarea id="ktf-ing" style="min-height:110px; font-family:inherit; font-size:13.5px;">${escapeHtml(r?.ingredients || '')}</textarea></div>
+    <div class="modal-field"><label>步驟</label><textarea id="ktf-steps" style="min-height:140px; font-family:inherit; font-size:13.5px;">${escapeHtml(r?.steps || '')}</textarea></div>
+    <div style="display:flex; gap:10px;"><button type="button" class="btn-cancel" id="ktf-cancel" style="padding:10px 18px;">取消</button><button type="button" class="btn-new-event" id="ktf-save">儲存</button></div>`;
+  ktEl('ktf-cancel').addEventListener('click', () => ktRecipes());
+  ktEl('ktf-save').addEventListener('click', async () => {
+    const name = ktEl('ktf-name').value.trim();
+    if (!name) { ktMsg('請填寫食譜名稱。', true); return; }
+    const sv = parseInt(ktEl('ktf-servings').value, 10);
+    const payload = { altar_id: ktState.altar.id, name, ingredients: ktEl('ktf-ing').value.trim() || null, steps: ktEl('ktf-steps').value.trim() || null, servings: sv > 0 ? sv : null };
+    const { error } = await (r ? supabaseClient.from('kitchen_recipes').update(payload).eq('id', r.id) : supabaseClient.from('kitchen_recipes').insert(payload));
+    if (error) { ktMsg('儲存失敗：' + error.message, true); return; }
+    ktMsg(''); ktRecipes();
+  });
+}
+
+/* ===== 菜單 ===== */
+async function ktMenus() {
+  const today = mtToday();
+  ktEl('kt-body').innerHTML = `<div class="mt-bar">
+      <label>從 <input type="date" id="ktm-from" class="mt-in" value="${mtAddDays(today, -14)}"></label>
+      <label>到 <input type="date" id="ktm-to" class="mt-in" value="${mtAddDays(today, 30)}"></label>
+      <button type="button" class="btn-new-event" id="ktm-go">查詢</button><span style="flex:1;"></span>
+      <button type="button" class="btn-cancel" id="ktm-add" style="padding:8px 14px;">＋ 新增菜單</button></div><div id="ktm-list"></div>`;
+  ktEl('ktm-go').addEventListener('click', ktMenusLoad);
+  ktEl('ktm-add').addEventListener('click', () => ktMenuForm(null));
+  await ktMenusLoad();
+}
+async function ktMenusLoad() {
+  const from = ktEl('ktm-from').value, to = ktEl('ktm-to').value, list = ktEl('ktm-list');
+  if (!from || !to || from > to) { ktMsg('請選擇正確的日期區間。', true); return; }
+  ktMsg(''); list.innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  const menus = await mtAll(() => supabaseClient.from('kitchen_menus').select('*, kitchen_menu_items(id, recipe_id, kitchen_recipes(name))')
+    .eq('altar_id', ktState.altar.id).gte('menu_date', from).lte('menu_date', to).order('menu_date', { ascending: true }).order('id', { ascending: true }));
+  ktState.menus = menus;
+  if (!menus.length) { list.innerHTML = '<div style="color:var(--ink-soft);">這段期間沒有菜單。</div>'; return; }
+  list.innerHTML = `<table class="mt-table"><thead><tr><th>日期</th><th>餐別</th><th>食譜</th><th>備註</th><th></th></tr></thead><tbody>${menus.map(m => `<tr data-id="${m.id}">
+      <td>${m.menu_date}</td><td>${m.meal === 'none' ? '' : KT_MEAL[m.meal]}</td>
+      <td>${(m.kitchen_menu_items || []).map(i => escapeHtml(i.kitchen_recipes?.name || '—')).join('、') || '<span style="color:var(--ink-soft);">（無）</span>'}</td>
+      <td style="color:var(--ink-soft);">${escapeHtml(m.notes || '')}</td>
+      <td style="white-space:nowrap;"><button type="button" class="btn-text kt-m-edit">編輯</button><button type="button" class="btn-text kt-m-del" style="color:var(--red);">刪除</button></td></tr>`).join('')}</tbody></table>`;
+  list.querySelectorAll('.kt-m-edit').forEach(b => b.addEventListener('click', () => ktMenuForm(ktState.menus.find(m => m.id === b.closest('tr').dataset.id))));
+  list.querySelectorAll('.kt-m-del').forEach(b => b.addEventListener('click', async () => {
+    const m = ktState.menus.find(x => x.id === b.closest('tr').dataset.id);
+    if (!confirm(`確定要刪除 ${m.menu_date}${m.meal !== 'none' ? ' ' + KT_MEAL[m.meal] : ''} 的菜單嗎？\n\n綁定這份菜單的天廚工作也會一併刪除。`)) return;
+    const { error } = await supabaseClient.from('kitchen_menus').delete().eq('id', m.id);
+    if (error) { ktMsg('刪除失敗：' + error.message, true); return; }
+    ktMenusLoad();
+  }));
+}
+async function ktMenuForm(m) {
+  await ktLoadRecipes();
+  const have = new Set((m?.kitchen_menu_items || []).map(i => i.recipe_id));
+  ktEl('kt-body').innerHTML = `<h3 style="margin:0 0 12px;">${m ? '編輯' : '新增'}菜單</h3>
+    <div class="field-row">
+      <div class="modal-field"><label>日期</label><input type="date" id="ktmf-date" value="${m?.menu_date || mtToday()}"></div>
+      <div class="modal-field"><label>餐別</label><select id="ktmf-meal" class="mt-in" style="width:100%;">${Object.entries(KT_MEAL).map(([k, v]) => `<option value="${k}"${(m?.meal || 'none') === k ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-field"><label>備註（選填）</label><input type="text" id="ktmf-notes" value="${escapeHtml(m?.notes || '')}"></div>
+    <div class="modal-field"><label>食譜（可複選）</label>${ktState.recipes.length ? `<div style="max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:6px 10px;">${ktState.recipes.map(r => `<label style="display:flex; gap:8px; align-items:center; padding:4px 0; font-weight:400;"><input type="checkbox" class="ktmf-r" value="${r.id}"${have.has(r.id) ? ' checked' : ''}> ${escapeHtml(r.name)}</label>`).join('')}</div>` : '<div style="color:var(--ink-soft); font-size:13px;">還沒有食譜，請先到「食譜」分頁新增。</div>'}</div>
+    <div style="display:flex; gap:10px;"><button type="button" class="btn-cancel" id="ktmf-cancel" style="padding:10px 18px;">取消</button><button type="button" class="btn-new-event" id="ktmf-save">儲存</button></div>`;
+  ktEl('ktmf-cancel').addEventListener('click', () => ktMenus());
+  ktEl('ktmf-save').addEventListener('click', async () => {
+    const date = ktEl('ktmf-date').value;
+    if (!date) { ktMsg('請選擇日期。', true); return; }
+    const payload = { altar_id: ktState.altar.id, menu_date: date, meal: ktEl('ktmf-meal').value, notes: ktEl('ktmf-notes').value.trim() || null };
+    let id = m?.id;
+    if (id) {
+      const { error } = await supabaseClient.from('kitchen_menus').update(payload).eq('id', id);
+      if (error) { ktMsg(/duplicate/i.test(error.message) ? '這個日期／餐別已經有菜單了。' : '儲存失敗：' + error.message, true); return; }
+    } else {
+      const { data, error } = await supabaseClient.from('kitchen_menus').insert(payload).select().single();
+      if (error) { ktMsg(/duplicate/i.test(error.message) ? '這個日期／餐別已經有菜單了。' : '儲存失敗：' + error.message, true); return; }
+      id = data.id;
+    }
+    // 同步菜單內的食譜：刪掉取消勾選的、新增新勾選的
+    const want = [...document.querySelectorAll('.ktmf-r:checked')].map(c => c.value);
+    const { data: cur } = await supabaseClient.from('kitchen_menu_items').select('id, recipe_id').eq('menu_id', id);
+    const toRemove = (cur || []).filter(x => !want.includes(x.recipe_id)).map(x => x.id);
+    const toAdd = want.filter(rid => !(cur || []).some(x => x.recipe_id === rid));
+    if (toRemove.length) { const { error } = await supabaseClient.from('kitchen_menu_items').delete().in('id', toRemove); if (error) { ktMsg('儲存食譜失敗：' + error.message, true); return; } }
+    if (toAdd.length) { const { error } = await supabaseClient.from('kitchen_menu_items').insert(toAdd.map(recipe_id => ({ menu_id: id, recipe_id }))); if (error) { ktMsg('儲存食譜失敗：' + error.message, true); return; } }
+    ktMsg(''); ktMenus();
+  });
+}
+
+/* ===== 工作 ===== */
+async function ktTasks() {
+  ktEl('kt-body').innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  await ktLoadMembers();
+  const today = mtToday();
+  const { data: menus } = await supabaseClient.from('kitchen_menus').select('id, menu_date, meal').eq('altar_id', ktState.altar.id)
+    .gte('menu_date', mtAddDays(today, -14)).lte('menu_date', mtAddDays(today, 30)).order('menu_date', { ascending: true });
+  ktState.menuOpts = menus || [];
+  const memberOpts = (sel) => `<option value="">${sel}</option>` + ktState.members.map(x => `<option value="${x.user_id}">${escapeHtml(x.name)}${x.role === 'leader' ? '（組長）' : ''}</option>`).join('');
+  ktEl('kt-body').innerHTML = `<div class="mt-bar">
+      <label>狀態 <select id="ktt-status" class="mt-in"><option value="">全部</option><option value="open">尚未認領</option><option value="claimed">已認領</option><option value="done">已完成</option></select></label>
+      <label style="flex:1; min-width:180px;">新增工作 <input type="text" id="ktt-new" class="mt-in" placeholder="例：備料、炒菜…"></label>
+      <label>綁定菜單 <select id="ktt-menu" class="mt-in"><option value="">（不綁定）</option>${ktState.menuOpts.map(m => `<option value="${m.id}">${m.menu_date}${m.meal !== 'none' ? ' ' + KT_MEAL[m.meal] : ''}</option>`).join('')}</select></label>
+      <label>指派給 <select id="ktt-assignee" class="mt-in">${memberOpts('不指派（開放認領）')}</select></label>
+      <button type="button" class="btn-new-event" id="ktt-add">＋ 新增</button></div><div id="ktt-list"></div>`;
+  ktEl('ktt-status').addEventListener('change', ktTasksLoad);
+  ktEl('ktt-add').addEventListener('click', async () => {
+    const content = ktEl('ktt-new').value.trim();
+    if (!content) { ktMsg('請填寫工作內容。', true); return; }
+    const assignee = ktEl('ktt-assignee').value || null;
+    const { error } = await supabaseClient.from('kitchen_tasks').insert({ altar_id: ktState.altar.id, menu_id: ktEl('ktt-menu').value || null, content, assignee_user_id: assignee, status: assignee ? 'claimed' : 'open' });
+    if (error) { ktMsg('新增失敗：' + error.message, true); return; }
+    ktMsg(''); ktEl('ktt-new').value = ''; ktTasksLoad();
+  });
+  await ktTasksLoad();
+}
+async function ktTasksLoad() {
+  const list = ktEl('ktt-list'), status = ktEl('ktt-status').value;
+  list.innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  const rows = await mtAll(() => {
+    let q = supabaseClient.from('kitchen_tasks').select('*, kitchen_menus(menu_date, meal)').eq('altar_id', ktState.altar.id).order('created_at', { ascending: false }).order('id', { ascending: true });
+    if (status) q = q.eq('status', status);
+    return q;
+  });
+  const order = { open: 0, claimed: 1, done: 2 };
+  rows.sort((a, b) => order[a.status] - order[b.status]);
+  ktState.tasks = rows;
+  if (!rows.length) { list.innerHTML = '<div style="color:var(--ink-soft);">沒有符合的工作。</div>'; return; }
+  const memberOpts = (cur) => '<option value="">（未認領）</option>' + (cur && !ktState.members.some(x => x.user_id === cur) ? `<option value="${cur}" selected>（非天廚組員）</option>` : '') + ktState.members.map(x => `<option value="${x.user_id}"${cur === x.user_id ? ' selected' : ''}>${escapeHtml(x.name)}</option>`).join('');
+  list.innerHTML = `<table class="mt-table"><thead><tr><th>工作</th><th>菜單</th><th>認領人</th><th>狀態</th><th></th></tr></thead><tbody>${rows.map(t => `<tr data-id="${t.id}">
+      <td style="${t.status === 'done' ? 'text-decoration:line-through; color:var(--ink-soft);' : ''}">${escapeHtml(t.content)}</td>
+      <td style="color:var(--ink-soft);">${t.kitchen_menus ? t.kitchen_menus.menu_date + (t.kitchen_menus.meal !== 'none' ? ' ' + KT_MEAL[t.kitchen_menus.meal] : '') : ''}</td>
+      <td><select class="mt-in ktt-who">${memberOpts(t.assignee_user_id)}</select></td>
+      <td>${KT_STATUS[t.status]}</td>
+      <td style="white-space:nowrap;">${t.status === 'done' ? '<button type="button" class="btn-text ktt-reopen">重設</button>' : '<button type="button" class="btn-text ktt-done">完成</button>'}<button type="button" class="btn-text ktt-del" style="color:var(--red);">刪除</button></td></tr>`).join('')}</tbody></table>`;
+  const upd = async (id, patch) => { const { error } = await supabaseClient.from('kitchen_tasks').update(patch).eq('id', id); if (error) ktMsg('更新失敗：' + error.message, true); else ktTasksLoad(); };
+  list.querySelectorAll('.ktt-who').forEach(s => s.addEventListener('change', () => {
+    const t = ktState.tasks.find(x => x.id === s.closest('tr').dataset.id), who = s.value || null;
+    upd(t.id, { assignee_user_id: who, status: t.status === 'done' ? 'done' : (who ? 'claimed' : 'open') });
+  }));
+  list.querySelectorAll('.ktt-done').forEach(b => b.addEventListener('click', () => upd(b.closest('tr').dataset.id, { status: 'done' })));
+  list.querySelectorAll('.ktt-reopen').forEach(b => b.addEventListener('click', () => { const t = ktState.tasks.find(x => x.id === b.closest('tr').dataset.id); upd(t.id, { status: t.assignee_user_id ? 'claimed' : 'open' }); }));
+  list.querySelectorAll('.ktt-del').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('確定要刪除這個工作嗎？')) return;
+    const { error } = await supabaseClient.from('kitchen_tasks').delete().eq('id', b.closest('tr').dataset.id);
+    if (error) ktMsg('刪除失敗：' + error.message, true); else ktTasksLoad();
+  }));
+}
+
 /* ---------- Altar detail: 3 team rosters ---------- */
 
 function openAltarDetail(altar) {
@@ -6351,7 +6635,7 @@ async function renderAltarTeamSection(altar, team) {
   const label = TEAM_LABELS[team];
   container.innerHTML = `
     <div style="font-size:14px; font-weight:700; margin-bottom:8px;">${label}${team !== 'kitchen' ? '　<span style="font-weight:400; font-size:12px; color:var(--ink-soft);">（沿用任務管理，組長需另外在「任務管理」建立限定「' + escapeHtml(altar.name) + '・' + label + '」群組的工作）</span>' : ''}</div>
-    <div style="margin-bottom:8px; display:flex; gap:8px; flex-wrap:wrap;"><button type="button" class="btn-cancel" data-tx-open="rules" data-tx-team="${team}">📘 工作細則</button><button type="button" class="btn-cancel" data-tx-open="handover" data-tx-team="${team}">🔁 交接項目</button></div>
+    <div style="margin-bottom:8px; display:flex; gap:8px; flex-wrap:wrap;"><button type="button" class="btn-cancel" data-tx-open="rules" data-tx-team="${team}">📘 工作細則</button><button type="button" class="btn-cancel" data-tx-open="handover" data-tx-team="${team}">🔁 交接項目</button>${team === 'kitchen' ? '<button type="button" class="btn-cancel" data-kt-open="1">🍳 食譜／菜單／工作</button>' : ''}</div>
     <div id="altar-team-${team}-list" style="margin-bottom:10px;">載入中…</div>
     <div class="modal-field">
       <label>搜尋姓名以新增${label}人員</label>
@@ -6361,6 +6645,7 @@ async function renderAltarTeamSection(altar, team) {
   `;
 
   container.querySelectorAll('[data-tx-open]').forEach(b => b.addEventListener('click', () => txOpen(altar, b.dataset.txTeam, b.dataset.txOpen)));
+  container.querySelectorAll('[data-kt-open]').forEach(b => b.addEventListener('click', () => ktOpen(altar)));
   await refreshAltarTeamList(altar, team);
 
   let debounce = null;
@@ -8771,6 +9056,159 @@ async function runJobAdminSearch(query) {
 }
 
 checkExistingSession();
+
+/* =========================================================
+   AUTO-DISPATCH (自動派工) — dispatch_rules / dispatch_log (super admin, RLS).
+   The daily run itself is the dispatch-run Edge Function (GitHub Actions cron);
+   「預覽」/「立即執行」 call the same function with the admin's session token.
+   ========================================================= */
+const DP_FUNCTION_URL = 'https://ixzvbyxhzttvnheivsoc.functions.supabase.co/dispatch-run';
+const dpState = { tab: 'rules', rules: [], groups: [], presets: [], events: [], entries: [], editing: null };
+const dpEl = (id) => document.getElementById(id);
+const DP_KINDS = { calendar_keyword: '行事曆關鍵字', calendar_entry: '指定行事曆項目', saint_day: '仙佛紀念日', lunar_day: '農曆日（初一／十五）' };
+
+function dpMsg(t, ok) { const m = dpEl('dp-msg'); m.style.color = ok === false ? '#C0392B' : '#067A37'; m.textContent = t || ''; }
+function dpLeadText(d) { return d % 7 === 0 && d >= 7 ? (d / 7) + ' 週前' : d + ' 天前'; }
+function dpNames(ids, list) { return (ids || []).map(i => (list.find(x => x.id === i) || {}).name || (list.find(x => x.id === i) || {}).title || '?').join('、') || '—'; }
+
+async function dpLoadLookups() {
+  const today = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  const [g, p, e, c] = await Promise.all([
+    supabaseClient.from('task_groups').select('id, name').order('name'),
+    supabaseClient.from('task_job_presets').select('id, name, title').order('name'),
+    supabaseClient.from('events').select('id, name, event_date').order('event_date', { ascending: false }).limit(200),
+    supabaseClient.from('calendar_entries').select('id, entry_date, title, category').gte('entry_date', today).order('entry_date').limit(300),
+  ]);
+  dpState.groups = g.data || []; dpState.presets = (p.data || []).map(x => ({ id: x.id, name: x.name || x.title }));
+  dpState.events = e.data || []; dpState.entries = c.data || [];
+}
+
+async function dpShow(tab) {
+  dpState.tab = tab; dpState.editing = null;
+  document.querySelectorAll('#dp-tabs .tabs-row-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  dpMsg('');
+  if (tab === 'rules') await dpRenderRules(); else await dpRenderLog();
+}
+
+async function dpRenderRules() {
+  const body = dpEl('dp-body'); body.innerHTML = '載入中…';
+  await dpLoadLookups();
+  const { data, error } = await supabaseClient.from('dispatch_rules').select('*').order('created_at');
+  if (error) { body.innerHTML = ''; dpMsg('載入失敗：' + error.message + '（需要超級管理員，且已執行 SQL 59）', false); return; }
+  dpState.rules = data || [];
+  const rows = dpState.rules.map(r => {
+    const what = r.kind === 'calendar_keyword' ? '標題含「' + escapeHtml(r.keyword || '') + '」'
+      : r.kind === 'calendar_entry' ? escapeHtml((dpState.entries.find(x => x.id === r.calendar_entry_id) || {}).title || '（已過期的項目）')
+      : r.kind === 'saint_day' ? (r.keyword ? '紀念日含「' + escapeHtml(r.keyword) + '」' : '全部仙佛紀念日')
+      : '農曆 ' + (r.lunar_days || []).map(d => d === 1 ? '初一' : d === 15 ? '十五' : d).join('、');
+    const tpl = r.template_event_id ? escapeHtml((dpState.events.find(x => x.id === r.template_event_id) || {}).name || '（範本已刪除）') : '—';
+    return '<tr><td>' + escapeHtml(r.name) + (r.is_active ? '' : ' <span style="color:#999;">（停用）</span>') + '</td><td>' + DP_KINDS[r.kind] + '<br><span style="color:#666;">' + what + '</span></td>'
+      + '<td>' + dpLeadText(r.lead_days) + '</td><td>' + tpl + '</td><td>' + escapeHtml(dpNames(r.preset_ids, dpState.presets)) + '</td><td>' + escapeHtml(dpNames(r.group_ids, dpState.groups)) + '</td><td>' + (r.notify ? '是' : '否') + '</td>'
+      + '<td style="white-space:nowrap;"><button type="button" class="btn-text" data-dp-edit="' + r.id + '">編輯</button> <button type="button" class="btn-text" data-dp-del="' + r.id + '" style="color:#C0392B;">刪除</button></td></tr>';
+  }).join('');
+  body.innerHTML = '<div style="margin-bottom:10px;"><button type="button" class="btn-new-event" id="dp-add-btn">＋ 新增規則</button></div>'
+    + (rows ? '<div style="overflow-x:auto;"><table class="mt-table"><thead><tr><th>名稱</th><th>觸發條件</th><th>提前</th><th>報名表範本</th><th>工作清單</th><th>派工群組</th><th>推送</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p style="color:#666;">尚無規則。</p>');
+  dpEl('dp-add-btn').onclick = () => dpForm(null);
+  body.querySelectorAll('[data-dp-edit]').forEach(b => b.onclick = () => dpForm(dpState.rules.find(r => r.id === b.dataset.dpEdit)));
+  body.querySelectorAll('[data-dp-del]').forEach(b => b.onclick = async () => {
+    if (!confirm('刪除這條規則？（它的派工紀錄也會一併刪除，之後同一來源可能被其他規則再派送；已建立的活動與工作不會被刪）')) return;
+    const { error } = await supabaseClient.from('dispatch_rules').delete().eq('id', b.dataset.dpDel);
+    if (error) dpMsg('刪除失敗：' + error.message, false); else dpRenderRules();
+  });
+}
+
+function dpChecks(name, list, selected, label) {
+  return '<div style="display:flex; flex-wrap:wrap; gap:6px 14px; max-height:120px; overflow:auto; border:1px solid #ddd; border-radius:6px; padding:6px;">'
+    + (list.length ? list.map(x => '<label style="font-size:13px;"><input type="checkbox" name="' + name + '" value="' + x.id + '"' + ((selected || []).includes(x.id) ? ' checked' : '') + '> ' + escapeHtml(label(x)) + '</label>').join('') : '<span style="color:#999;">（沒有資料）</span>') + '</div>';
+}
+
+function dpForm(r) {
+  dpState.editing = r || {};
+  const v = r || { kind: 'calendar_keyword', lead_days: 14, notify: true, is_active: true, lunar_days: [1, 15], preset_ids: [], group_ids: [], event_group_ids: [] };
+  const weeks = v.lead_days % 7 === 0 && v.lead_days >= 7;
+  dpEl('dp-body').innerHTML = '<div style="display:grid; gap:12px; max-width:720px;">'
+    + '<label>規則名稱<input id="dpf-name" class="mt-in" value="' + escapeHtml(v.name || '') + '" placeholder="例：班程提前兩週開報名"></label>'
+    + '<label>觸發條件<select id="dpf-kind" class="mt-in">' + Object.keys(DP_KINDS).map(k => '<option value="' + k + '"' + (v.kind === k ? ' selected' : '') + '>' + DP_KINDS[k] + '</option>').join('') + '</select></label>'
+    + '<label id="dpf-kw-wrap">關鍵字（行事曆標題包含；仙佛紀念日留空＝全部）<input id="dpf-kw" class="mt-in" value="' + escapeHtml(v.keyword || '') + '"></label>'
+    + '<label id="dpf-entry-wrap">行事曆項目（今天起）<select id="dpf-entry" class="mt-in"><option value="">—</option>' + dpState.entries.filter(e => e.category !== 'saint').map(e => '<option value="' + e.id + '"' + (v.calendar_entry_id === e.id ? ' selected' : '') + '>' + e.entry_date + ' ' + escapeHtml(e.title) + '</option>').join('') + '</select></label>'
+    + '<div id="dpf-lunar-wrap">農曆日 <label><input type="checkbox" name="dpf-lunar" value="1"' + ((v.lunar_days || []).includes(1) ? ' checked' : '') + '> 初一</label> <label><input type="checkbox" name="dpf-lunar" value="15"' + ((v.lunar_days || []).includes(15) ? ' checked' : '') + '> 十五</label></div>'
+    + '<div>提前 <input id="dpf-lead" type="number" min="0" max="52" class="mt-in" style="width:80px;" value="' + (weeks ? v.lead_days / 7 : v.lead_days) + '"> <select id="dpf-unit" class="mt-in" style="width:80px;"><option value="7"' + (weeks ? ' selected' : '') + '>週</option><option value="1"' + (weeks ? '' : ' selected') + '>天</option></select> 建立（班程建議 1–4 週；紀念日／初一十五建議 3 天）</div>'
+    + '<label>報名表範本（複製此活動的表單、壇、交通／住宿設定；日期與名稱改用行事曆項目。留空＝不建報名表）<select id="dpf-tpl" class="mt-in"><option value="">— 不建報名表 —</option>' + dpState.events.map(e => '<option value="' + e.id + '"' + (v.template_event_id === e.id ? ' selected' : '') + '>' + escapeHtml(e.name) + '（' + (e.event_date || '') + '）</option>').join('') + '</select></label>'
+    + '<div>新報名表可見群組（不勾＝沿用範本）' + dpChecks('dpf-eg', dpState.groups, v.event_group_ids, g => g.name) + '</div>'
+    + '<div>工作清單' + dpChecks('dpf-preset', dpState.presets, v.preset_ids, p => p.name) + '</div>'
+    + '<div>派工群組（不勾＝沿用各工作清單自己的群組；LINE 通知也送給這些群組）' + dpChecks('dpf-group', dpState.groups, v.group_ids, g => g.name) + '</div>'
+    + '<label><input type="checkbox" id="dpf-notify"' + (v.notify ? ' checked' : '') + '> 建立後推送 LINE 通知</label>'
+    + '<label><input type="checkbox" id="dpf-active"' + (v.is_active ? ' checked' : '') + '> 啟用</label>'
+    + '<div><button type="button" class="btn-new-event" id="dpf-save">儲存</button> <button type="button" class="btn-cancel" id="dpf-cancel">取消</button></div></div>';
+  const sync = () => {
+    const k = dpEl('dpf-kind').value;
+    dpEl('dpf-kw-wrap').style.display = (k === 'calendar_keyword' || k === 'saint_day') ? '' : 'none';
+    dpEl('dpf-entry-wrap').style.display = k === 'calendar_entry' ? '' : 'none';
+    dpEl('dpf-lunar-wrap').style.display = k === 'lunar_day' ? '' : 'none';
+  };
+  dpEl('dpf-kind').onchange = sync; sync();
+  dpEl('dpf-cancel').onclick = () => dpRenderRules();
+  dpEl('dpf-save').onclick = dpSave;
+}
+
+async function dpSave() {
+  const vals = (n) => [...document.querySelectorAll('input[name="' + n + '"]:checked')].map(i => i.value);
+  const kind = dpEl('dpf-kind').value, name = dpEl('dpf-name').value.trim();
+  const lead = Math.round((parseFloat(dpEl('dpf-lead').value) || 0) * parseInt(dpEl('dpf-unit').value, 10));
+  const row = {
+    name, kind, keyword: dpEl('dpf-kw').value.trim() || null,
+    calendar_entry_id: kind === 'calendar_entry' ? (dpEl('dpf-entry').value || null) : null,
+    lunar_days: kind === 'lunar_day' ? vals('dpf-lunar').map(Number) : [],
+    lead_days: lead, template_event_id: dpEl('dpf-tpl').value || null,
+    event_group_ids: vals('dpf-eg'), preset_ids: vals('dpf-preset'), group_ids: vals('dpf-group'),
+    notify: dpEl('dpf-notify').checked, is_active: dpEl('dpf-active').checked,
+  };
+  if (!name) return dpMsg('請填寫規則名稱。', false);
+  if (kind === 'calendar_keyword' && !row.keyword) return dpMsg('請填寫關鍵字。', false);
+  if (kind === 'calendar_entry' && !row.calendar_entry_id) return dpMsg('請選擇行事曆項目。', false);
+  if (kind === 'lunar_day' && !row.lunar_days.length) return dpMsg('請勾選初一或十五。', false);
+  if (lead < 0 || lead > 365) return dpMsg('提前天數需在 0–365 天。', false);
+  if (!row.template_event_id && !row.preset_ids.length) return dpMsg('請至少選一個報名表範本或工作清單。', false);
+  if (kind !== 'calendar_keyword' && kind !== 'saint_day') row.keyword = null;
+  const id = dpState.editing && dpState.editing.id;
+  const { error } = id ? await supabaseClient.from('dispatch_rules').update(row).eq('id', id) : await supabaseClient.from('dispatch_rules').insert(row);
+  if (error) return dpMsg('儲存失敗：' + error.message, false);
+  await dpRenderRules(); dpMsg('已儲存。若來源已在提前期間內，下一次執行（或按「立即執行」）就會派送。');
+}
+
+async function dpRenderLog() {
+  const body = dpEl('dp-body'); body.innerHTML = '載入中…';
+  const { data, error } = await supabaseClient.from('dispatch_log').select('*, dispatch_rules(name)').order('created_at', { ascending: false }).limit(200);
+  if (error) { body.innerHTML = ''; return dpMsg('載入失敗：' + error.message, false); }
+  const rows = (data || []).map(l => '<tr><td>' + new Date(l.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) + '</td><td>' + escapeHtml((l.dispatch_rules || {}).name || '') + '</td><td>' + l.source_date + ' ' + escapeHtml(l.source_title || '') + '</td><td>' + escapeHtml(l.message || '') + '</td><td>' + l.notified_count + '</td><td style="color:' + (l.status === 'ok' ? '#067A37' : '#C0392B') + ';">' + l.status + '</td><td><button type="button" class="btn-text" data-dp-undo="' + l.id + '" title="只刪紀錄，讓這個來源可再被派送；已建立的活動與工作要另外刪除">重新派送</button></td></tr>').join('');
+  body.innerHTML = rows ? '<div style="overflow-x:auto;"><table class="mt-table"><thead><tr><th>時間</th><th>規則</th><th>來源</th><th>內容</th><th>通知人數</th><th>狀態</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p style="color:#666;">還沒有派工紀錄。</p>';
+  body.querySelectorAll('[data-dp-undo]').forEach(b => b.onclick = async () => {
+    if (!confirm('刪除這筆紀錄，下次執行會再派送一次（已建立的活動與工作不會被刪，可能重複）。確定？')) return;
+    const { error } = await supabaseClient.from('dispatch_log').delete().eq('id', b.dataset.dpUndo);
+    if (error) dpMsg('失敗：' + error.message, false); else dpRenderLog();
+  });
+}
+
+async function dpCall(dry) {
+  dpMsg(dry ? '預覽中…' : '執行中…');
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  try {
+    const res = await fetch(DP_FUNCTION_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'run', dry_run: dry, accessToken: session && session.access_token }) });
+    const j = await res.json();
+    if (!res.ok) return dpMsg(j.error || '失敗', false);
+    const list = j.dispatched || [];
+    if (!list.length) return dpMsg((dry ? '預覽：' : '') + '今天沒有需要派送的項目（' + j.today + '；已派送過而略過 ' + (j.skipped || 0) + ' 筆）。');
+    dpMsg((dry ? '預覽（尚未建立）：' : '已派送：') + list.map(d => d.date + ' ' + d.title + '〔' + d.rule_name + '〕' + (d.error ? ' ✗ ' + d.error : (!dry && d.notified != null ? ' 通知 ' + d.notified + ' 人' : ''))).join('；'), !list.some(d => d.error));
+    if (!dry) dpShow(dpState.tab);
+  } catch (e) { dpMsg('連線失敗：' + e.message, false); }
+}
+
+dpEl('manage-dispatch-btn').addEventListener('click', () => { dpEl('dp-modal').classList.add('show'); dpShow('rules'); });
+dpEl('dp-close-btn').addEventListener('click', () => dpEl('dp-modal').classList.remove('show'));
+dpEl('dp-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) dpShow(b.dataset.tab); });
+dpEl('dp-preview-btn').addEventListener('click', () => dpCall(true));
+dpEl('dp-run-btn').addEventListener('click', () => { if (confirm('現在就依規則建立報名表／工作並推送 LINE？')) dpCall(false); });
 </script>
 
 </body>

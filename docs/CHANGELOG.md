@@ -6,6 +6,15 @@
 ## [未發佈]
 （新的變更先寫這裡）
 
+## 2026.10.10-4
+- 新增「🤖 自動派工 Auto-dispatch」（規則、預覽、立即執行、派工紀錄）。**要先跑 `SQL/59-auto-dispatch.sql`**。見 event-registration `docs/DECISIONS.md` D-20261010-04。
+
+## 2026.10.10-3
+- 新增活動表單補「提供交通／提供住宿」；壇的天廚組新增「食譜／菜單／工作」管理。無 SQL。見 event-registration `docs/DECISIONS.md` D-20261010-03。
+
+## 2026.10.10-2
+- 溝通共識：新增「臨時會議」（沒排定也能新增一場並記錄）。無 SQL。
+
 ## 2026.10.10-1
 - 「溝通共識系統」擴充：會議類型、場次（出席／紀錄／狀態／待辦）、待辦事項總覽、統計與匯出 Excel／出席明細 CSV。直接寫資料庫（超級管理者 RLS）。見 event-registration `docs/DECISIONS.md` D-20261010-01。無新 SQL。
 
