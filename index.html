@@ -364,6 +364,15 @@
   .ccal-kind.event { background:#FFEDD5; color:#C2410C; } .ccal-kind.task { background:#EDE9FE; color:#6D28D9; } .ccal-kind.saint { background:#FEF3C7; color:#92400E; } .ccal-kind.lunar { background:#CFFAFE; color:#155E75; }
   .ci-table th, .ci-table td { padding:5px 8px; font-size:13px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   .ci-table tr.dup td, .ci-table tr.bad td { color:var(--ink-soft); background:#FAFAFA; }
+  .mt-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .mt-table th, .mt-table td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  .mt-table th { font-size:12px; color:var(--ink-soft); font-weight:700; }
+  .mt-in { padding:7px 9px; border:1.5px solid var(--line); border-radius:8px; font-size:13.5px; font-family:inherit; background:var(--paper); }
+  .mt-bar { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px; }
+  .mt-bar label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--ink-soft); }
+  .mt-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .mt-cards div { background:var(--canvas); border-radius:10px; padding:12px 14px; }
+  .mt-cards b { display:block; font-size:22px; } .mt-cards span { font-size:12px; color:var(--ink-soft); }
   .ci-tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
   .ci-tag.ok { background:#DCFCE7; color:#15803D; } .ci-tag.dup { background:#E5E7EB; color:#4B5563; } .ci-tag.bad { background:#FEE2E2; color:#B91C1C; }
   .ci-tab { padding:5px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; font-size:13px; }
@@ -1384,16 +1393,21 @@
   </div>
 
   <div class="modal-overlay" id="meetings-modal">
-    <div class="modal-box" style="max-width: 560px;">
+    <div class="modal-box" style="max-width: 1040px; width: 96vw;">
       <h2>🗣️ 溝通共識 Meetings</h2>
-      <p class="modal-sub">成員可查看受邀的會議、簽到、閱讀紀錄與待辦事項；會議管理員可在同一頁面管理會議類型並記錄出席／紀錄／待辦事項。實際的會議排程、出席記錄與紀錄都在 LINE 頁面中操作，此處僅管理管理員名單。</p>
-
-
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; padding:12px 14px; background:var(--canvas); border-radius:10px;">
-        <span style="font-size:13px; color:var(--ink-soft);">會議管理員 Meeting Admins <span style="display:block; font-size:11.5px; margin-top:2px;">獨立於其他管理員的名單，只有在此名單中的帳號才能管理會議類型與記錄</span></span>
-        <button type="button" class="btn-text" id="manage-meeting-admins-btn">管理 Manage</button>
+      <p class="modal-sub">管理會議類型、場次（出席／紀錄／待辦事項）、所有人的待辦總覽與統計。成員在 LINE 頁面簽到、閱讀紀錄、完成待辦；這裡的修改與 LINE 頁面共用同一份資料。</p>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:14px;">
+        <div class="tabs-row" id="mt-tabs" style="margin:0; flex-wrap:wrap;">
+          <button type="button" class="tabs-row-btn active" data-tab="types">會議類型</button>
+          <button type="button" class="tabs-row-btn" data-tab="inst">場次</button>
+          <button type="button" class="tabs-row-btn" data-tab="items">待辦事項</button>
+          <button type="button" class="tabs-row-btn" data-tab="stats">統計</button>
+        </div>
+        <span style="flex:1;"></span>
+        <button type="button" class="btn-text" id="manage-meeting-admins-btn">會議管理員 Meeting Admins</button>
       </div>
-
+      <div id="mt-msg" style="font-size:13px; min-height:18px; margin-bottom:8px;"></div>
+      <div id="mt-body"></div>
       <div class="modal-actions">
         <button type="button" class="btn-cancel" id="meetings-modal-close-btn">關閉</button>
       </div>
@@ -3785,7 +3799,7 @@ function trainRowHTML(t) {
   return `<tr data-id="${t.id || ''}" data-dir="${dir}">
     <td><input class="tr-no" style="${trainInput} width:70px;" value="${escapeHtml(t.train_no || '')}"></td>
     <td><input class="tr-type" style="${trainInput} width:110px;" value="${escapeHtml(t.train_type || '')}"></td>
-    <td><input class="tr-arr" type="time" style="${trainInput} width:105px;${dir === 'south' ? '' : ' display:none;'}" value="${escapeHtml(t.arrive_time || '')}"><input class="tr-dep" type="time" style="${trainInput} width:105px;${dir === 'north' ? '' : ' display:none;'}" value="${escapeHtml(t.depart_time || '')}"></td>
+    <td><input class="tr-arr" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" style="${trainInput} width:90px; text-align:center; font-variant-numeric:tabular-nums;${dir === 'south' ? '' : ' display:none;'}" value="${escapeHtml(t.arrive_time || '')}"><input class="tr-dep" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" style="${trainInput} width:90px; text-align:center; font-variant-numeric:tabular-nums;${dir === 'north' ? '' : ' display:none;'}" value="${escapeHtml(t.depart_time || '')}"></td>
     <td><input class="tr-route" style="${trainInput}" value="${escapeHtml(t.route || '')}"></td>
     <td><input class="tr-note" style="${trainInput}" value="${escapeHtml(t.note || '')}"></td>
     <td style="text-align:center;"><input class="tr-active" type="checkbox" ${t.is_active === false ? '' : 'checked'}></td>
@@ -3823,7 +3837,8 @@ document.getElementById('train-rows').addEventListener('click', (e) => {
   if (tr.dataset.id) trainDeleted.push(tr.dataset.id);
   tr.remove();
 });
-const trainNorm = (v) => { const m = String(v || '').match(/^(\d{1,2}):(\d{2})/); return m ? m[1].padStart(2, '0') + ':' + m[2] : ''; };
+// 24 小時制：接受 8:05、08:05、0805、08：05
+const trainNorm = (v) => { const m = String(v || '').trim().match(/^(\d{1,2})\s*[:：]?\s*(\d{2})/); if (!m || +m[1] > 23 || +m[2] > 59) return ''; return m[1].padStart(2, '0') + ':' + m[2]; };
 document.getElementById('train-save-btn').addEventListener('click', async () => {
   const msg = document.getElementById('train-msg');
   const rows = Array.from(document.querySelectorAll('#train-rows tr')).map(tr => {
@@ -3843,6 +3858,8 @@ document.getElementById('train-save-btn').addEventListener('click', async () => 
     return r;
   });
   msg.style.color = '#B91C1C';
+  const badTime = Array.from(document.querySelectorAll('#train-rows tr')).find(tr => ['.tr-arr', '.tr-dep'].some(c => { const v = tr.querySelector(c).value.trim(); return v && !trainNorm(v); }));
+  if (badTime) { trainTab = badTime.dataset.dir; trainApplyTab(); msg.textContent = '時間格式不對，請用 24 小時制 HH:MM（例：08:05、17:30）。'; return; }
   const bad = rows.findIndex(r => !r.train_no || !r.train_type || !(r._dir === 'north' ? r.depart_time : r.arrive_time));
   if (bad >= 0) { const r = rows[bad]; trainTab = r._dir; trainApplyTab(); msg.textContent = (r._dir === 'north' ? '回程' : '去程') + '第 ' + (rows.slice(0, bad + 1).filter(x => x._dir === r._dir).length) + ' 列：車次、車種、' + (r._dir === 'north' ? '瑞穗出發' : '抵達瑞穗') + '時間都要填。'; return; }
   const dup = rows.find((r, i) => rows.findIndex(x => x.train_no === r.train_no) !== i);
@@ -5384,10 +5401,9 @@ async function runLodgingManagerSearch(query) {
 }
 
 /* =========================================================
-   MEETINGS (溝通共識系統) — link + Meeting Admins list only.
-   The actual meeting types, instances, attendance and minutes
-   are all managed from the LINE page itself (meetings.html),
-   by whoever is in the meeting_admins list below.
+   MEETINGS (溝通共識系統) — 會議類型／場次／待辦／統計 + Meeting Admins list.
+   Super admins write the meeting_* tables directly (RLS); the LINE page
+   (meetings.html) goes through meeting-api. Same data, two front ends.
    ========================================================= */
 
 document.getElementById('manage-meetings-btn').addEventListener('click', () => {
@@ -5396,6 +5412,415 @@ document.getElementById('manage-meetings-btn').addEventListener('click', () => {
 document.getElementById('meetings-modal-close-btn').addEventListener('click', () => {
   document.getElementById('meetings-modal').classList.remove('show');
 });
+
+
+/* ---------- 會議管理（類型／場次／待辦／統計）---------- */
+const MT_STATUS = { scheduled: '尚未召開', completed: '已完成', cancelled: '已取消' };
+const MT_REC = { weekly: '每週', monthly: '每月', once: '單次' };
+const MT_WD = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+const mtState = { tab: 'types', types: [], groups: [], stats: null, openInst: null, itemsCache: [] };
+const mtEl = (id) => document.getElementById(id);
+const mtToday = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+const mtAddDays = (d, n) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const mtPct = (a, b) => (b ? Math.round(a * 1000 / b) / 10 : null);
+const mtPctText = (v) => (v == null ? '—' : v + '%');
+const mtTime = (iso) => (iso ? new Date(iso).toLocaleString('zh-TW', { hour12: false, timeZone: 'Asia/Taipei' }) : '');
+const mtMaxDays = 400;
+
+// Supabase 一次最多回 1000 筆：用 range 分頁抓完（build 要每次回傳新的查詢）
+async function mtAll(build) {
+  const out = []; let from = 0;
+  for (;;) {
+    const { data, error } = await build().range(from, from + 999);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < 1000) break;
+    from += 1000;
+  }
+  return out;
+}
+function mtMsg(text, isErr) { const m = mtEl('mt-msg'); m.textContent = text || ''; m.style.color = isErr ? 'var(--red)' : 'var(--ink-soft)'; }
+function mtRecDesc(t) {
+  const d = t.recurrence_detail || {};
+  return t.recurrence === 'weekly' ? '每' + MT_WD[d.weekday ?? 0]
+    : t.recurrence === 'monthly' ? '每月 ' + (d.day_of_month ?? '?') + ' 號'
+    : '單次（' + t.start_date + '）';
+}
+function mtDownload(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function mtShowTab(tab) {
+  mtState.tab = tab; mtState.openInst = null; mtMsg('');
+  document.querySelectorAll('#mt-tabs .tabs-row-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const run = { types: mtLoadTypes, inst: mtInstInit, items: mtItemsInit, stats: mtStatsInit }[tab];
+  run().catch(e => { mtMsg('載入失敗：' + (e.message || e), true); });
+}
+document.querySelectorAll('#mt-tabs .tabs-row-btn').forEach(b => b.addEventListener('click', () => mtShowTab(b.dataset.tab)));
+mtEl('manage-meetings-btn').addEventListener('click', () => mtShowTab(mtState.tab || 'types'));
+
+/* ===== 1. 會議類型 ===== */
+async function mtLoadTypes() {
+  mtEl('mt-body').innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  const [t, g] = await Promise.all([
+    supabaseClient.from('meeting_types').select('*').order('created_at', { ascending: true }),
+    supabaseClient.from('task_groups').select('id, name').order('name', { ascending: true }),
+  ]);
+  if (t.error) throw t.error;
+  mtState.types = t.data || []; mtState.groups = g.data || [];
+  const gName = new Map(mtState.groups.map(x => [x.id, x.name]));
+  const rows = mtState.types.map(x => `<tr data-id="${x.id}">
+      <td><b>${escapeHtml(x.name)}</b>${x.is_active ? '' : ' <span style="color:var(--ink-soft);">（已停用）</span>'}</td>
+      <td>${MT_REC[x.recurrence]}・${escapeHtml(mtRecDesc(x))}</td>
+      <td>${x.group_id ? escapeHtml(gName.get(x.group_id) || '—') : '（未指定）'}</td>
+      <td>${escapeHtml(x.place || '')}</td>
+      <td style="white-space:nowrap;"><button type="button" class="btn-text mt-type-edit">編輯</button><button type="button" class="btn-text mt-type-del" style="color:var(--red);">刪除</button></td></tr>`).join('');
+  mtEl('mt-body').innerHTML = `<div style="margin-bottom:10px;"><button type="button" class="btn-new-event" id="mt-type-add">＋ 新增會議類型</button></div>
+    ${mtState.types.length ? `<table class="mt-table"><thead><tr><th>名稱</th><th>週期</th><th>邀請群組</th><th>地點</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<div style="color:var(--ink-soft);">尚未建立任何會議類型。</div>'}`;
+  mtEl('mt-type-add').addEventListener('click', () => mtTypeForm(null));
+  mtEl('mt-body').querySelectorAll('.mt-type-edit').forEach(b => b.addEventListener('click', () => mtTypeForm(mtState.types.find(x => x.id === b.closest('tr').dataset.id))));
+  mtEl('mt-body').querySelectorAll('.mt-type-del').forEach(b => b.addEventListener('click', async () => {
+    const x = mtState.types.find(v => v.id === b.closest('tr').dataset.id);
+    if (!confirm(`確定要刪除「${x.name}」嗎？\n\n此動作將一併刪除相關的會議場次、出席紀錄與待辦事項，無法復原。`)) return;
+    const { error } = await supabaseClient.from('meeting_types').delete().eq('id', x.id);
+    if (error) { mtMsg('刪除失敗：' + error.message, true); return; }
+    mtLoadTypes();
+  }));
+}
+function mtTypeForm(x) {
+  const rec = x?.recurrence || 'weekly', wd = x?.recurrence_detail?.weekday ?? 1, dom = x?.recurrence_detail?.day_of_month ?? 1;
+  mtEl('mt-body').innerHTML = `<h3 style="margin:0 0 12px;">${x ? '編輯' : '新增'}會議類型</h3>
+    <div class="field-row">
+      <div class="modal-field"><label>會議名稱</label><input type="text" id="mtf-name" placeholder="例：道務會議" value="${escapeHtml(x?.name || '')}"></div>
+      <div class="modal-field"><label>地點（選填）</label><input type="text" id="mtf-place" value="${escapeHtml(x?.place || '')}"></div>
+    </div>
+    <div class="modal-field"><label>說明（選填）</label><textarea id="mtf-desc" style="min-height:60px; font-family:inherit; font-size:13.5px;">${escapeHtml(x?.description || '')}</textarea></div>
+    <div class="field-row">
+      <div class="modal-field"><label>頻率</label><select id="mtf-rec" class="mt-in" style="width:100%;">
+        <option value="weekly"${rec === 'weekly' ? ' selected' : ''}>每週</option><option value="monthly"${rec === 'monthly' ? ' selected' : ''}>每月</option><option value="once"${rec === 'once' ? ' selected' : ''}>單次</option></select></div>
+      <div class="modal-field" id="mtf-wd-f"><label>星期幾</label><select id="mtf-wd" class="mt-in" style="width:100%;">${MT_WD.map((w, i) => `<option value="${i}"${wd === i ? ' selected' : ''}>${w}</option>`).join('')}</select></div>
+      <div class="modal-field" id="mtf-dom-f"><label>每月幾號</label><input type="number" id="mtf-dom" min="1" max="31" value="${dom}"></div>
+    </div>
+    <div class="field-row">
+      <div class="modal-field"><label id="mtf-start-l">開始日期</label><input type="date" id="mtf-start" value="${x?.start_date || ''}"></div>
+      <div class="modal-field" id="mtf-end-f"><label>結束日期（選填，留空＝持續）</label><input type="date" id="mtf-end" value="${x?.end_date || ''}"></div>
+    </div>
+    <div class="modal-field"><label>邀請群組（出席者自動帶入群組成員）</label><select id="mtf-group" class="mt-in" style="width:100%;"><option value="">（未指定）</option>${mtState.groups.map(g => `<option value="${g.id}"${x?.group_id === g.id ? ' selected' : ''}>${escapeHtml(g.name)}</option>`).join('')}</select></div>
+    <label style="display:flex; gap:8px; align-items:center; font-size:13.5px; margin-bottom:12px;"><input type="checkbox" id="mtf-active" ${x && x.is_active === false ? '' : 'checked'}> 啟用中（停用後不再產生新場次）</label>
+    <div style="display:flex; gap:10px;"><button type="button" class="btn-cancel" id="mtf-cancel" style="padding:10px 18px;">取消</button><button type="button" class="btn-new-event" id="mtf-save">儲存</button></div>`;
+  const sync = () => {
+    const v = mtEl('mtf-rec').value;
+    mtEl('mtf-wd-f').style.display = v === 'weekly' ? '' : 'none';
+    mtEl('mtf-dom-f').style.display = v === 'monthly' ? '' : 'none';
+    mtEl('mtf-end-f').style.display = v === 'once' ? 'none' : '';
+    mtEl('mtf-start-l').textContent = v === 'once' ? '日期' : '開始日期';
+  };
+  mtEl('mtf-rec').addEventListener('change', sync); sync();
+  mtEl('mtf-cancel').addEventListener('click', () => mtLoadTypes());
+  mtEl('mtf-save').addEventListener('click', async () => {
+    const name = mtEl('mtf-name').value.trim(), recurrence = mtEl('mtf-rec').value, start = mtEl('mtf-start').value;
+    if (!name) { mtMsg('請填寫會議名稱。', true); return; }
+    if (!start) { mtMsg('請選擇日期。', true); return; }
+    const d = parseInt(mtEl('mtf-dom').value, 10);
+    if (recurrence === 'monthly' && !(d >= 1 && d <= 31)) { mtMsg('請填每月幾號（1–31）。', true); return; }
+    const payload = {
+      name, description: mtEl('mtf-desc').value.trim() || null, recurrence,
+      recurrence_detail: recurrence === 'weekly' ? { weekday: parseInt(mtEl('mtf-wd').value, 10) } : recurrence === 'monthly' ? { day_of_month: d } : {},
+      group_id: mtEl('mtf-group').value || null, place: mtEl('mtf-place').value.trim() || null,
+      start_date: start, end_date: recurrence === 'once' ? start : (mtEl('mtf-end').value || null),
+      is_active: mtEl('mtf-active').checked,
+    };
+    const q = x ? supabaseClient.from('meeting_types').update(payload).eq('id', x.id) : supabaseClient.from('meeting_types').insert(payload);
+    const { error } = await q;
+    if (error) { mtMsg('儲存失敗：' + error.message, true); return; }
+    mtMsg(''); mtLoadTypes();
+  });
+}
+
+/* ===== 2. 場次（出席／紀錄／待辦）===== */
+async function mtInstInit() {
+  if (!mtState.types.length) { const { data } = await supabaseClient.from('meeting_types').select('id, name').order('created_at', { ascending: true }); mtState.types = data || []; }
+  const today = mtToday();
+  mtEl('mt-body').innerHTML = `<div class="mt-bar">
+      <label>從 <input type="date" id="mti-from" class="mt-in" value="${mtAddDays(today, -30)}"></label>
+      <label>到 <input type="date" id="mti-to" class="mt-in" value="${mtAddDays(today, 60)}"></label>
+      <label>類型 <select id="mti-type" class="mt-in"><option value="">全部</option>${mtState.types.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></label>
+      <label>狀態 <select id="mti-status" class="mt-in"><option value="">全部</option>${Object.entries(MT_STATUS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+      <button type="button" class="btn-new-event" id="mti-go">查詢</button></div><div id="mti-list"></div>`;
+  mtEl('mti-go').addEventListener('click', mtInstLoad);
+  await mtInstLoad();
+}
+async function mtInstLoad() {
+  const from = mtEl('mti-from').value, to = mtEl('mti-to').value, list = mtEl('mti-list');
+  if (!from || !to || from > to) { mtMsg('請選擇正確的日期區間。', true); return; }
+  if ((new Date(to) - new Date(from)) / 86400000 > mtMaxDays) { mtMsg('區間最多 ' + mtMaxDays + ' 天。', true); return; }
+  mtMsg(''); list.innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  try {
+    await supabaseClient.rpc('ensure_meeting_instances', { p_from: from, p_to: to });
+    const typeId = mtEl('mti-type').value, status = mtEl('mti-status').value;
+    const rows = await mtAll(() => {
+      let q = supabaseClient.from('meeting_instances').select('id, meeting_date, status, notes, meeting_type_id, meeting_types(name, place), meeting_attendance(attended)')
+        .gte('meeting_date', from).lte('meeting_date', to).order('meeting_date', { ascending: true }).order('id', { ascending: true });
+      if (typeId) q = q.eq('meeting_type_id', typeId);
+      if (status) q = q.eq('status', status);
+      return q;
+    });
+    if (!rows.length) { list.innerHTML = '<div style="color:var(--ink-soft);">這段期間沒有場次。請先在「會議類型」建立至少一個啟用中的類型。</div>'; return; }
+    list.innerHTML = `<table class="mt-table"><thead><tr><th>日期</th><th>會議</th><th>地點</th><th>狀態</th><th>出席</th><th>紀錄</th><th></th></tr></thead><tbody>${rows.map(r => {
+      const inv = (r.meeting_attendance || []).length, att = (r.meeting_attendance || []).filter(a => a.attended).length;
+      return `<tr data-id="${r.id}"><td>${r.meeting_date}（${MT_WD[new Date(r.meeting_date + 'T00:00:00Z').getUTCDay()]}）</td><td><b>${escapeHtml(r.meeting_types?.name || '會議')}</b></td><td>${escapeHtml(r.meeting_types?.place || '')}</td><td>${MT_STATUS[r.status] || r.status}</td><td>${att} / ${inv}</td><td>${r.notes ? '有' : ''}</td><td><button type="button" class="btn-text mti-open">開啟</button></td></tr>`;
+    }).join('')}</tbody></table>`;
+    list.querySelectorAll('.mti-open').forEach(b => b.addEventListener('click', () => mtInstOpen(b.closest('tr').dataset.id)));
+  } catch (e) { list.innerHTML = ''; mtMsg('載入失敗：' + (e.message || e), true); }
+}
+async function mtInstOpen(id, backTab) {
+  mtState.openInst = id; mtState.backTab = backTab || 'inst';
+  mtEl('mt-body').innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  try {
+    const [i, a, it] = await Promise.all([
+      supabaseClient.from('meeting_instances').select('*, meeting_types(name, place)').eq('id', id).single(),
+      mtAll(() => supabaseClient.from('meeting_attendance').select('id, user_id, attended, checked_in_at, users(display_name)').eq('meeting_instance_id', id).order('id', { ascending: true })),
+      mtAll(() => supabaseClient.from('meeting_action_items').select('*, users(display_name)').eq('meeting_instance_id', id).order('created_at', { ascending: true }).order('id', { ascending: true })),
+    ]);
+    if (i.error) throw i.error;
+    const inst = i.data;
+    const att = a.slice().sort((x, y) => String(x.users?.display_name || '').localeCompare(String(y.users?.display_name || ''), 'zh-Hant'));
+    mtEl('mt-body').innerHTML = `<div style="margin-bottom:10px;"><button type="button" class="btn-text" id="mtd-back" style="padding-left:0;">‹ 返回</button></div>
+      <h3 style="margin:0 0 4px;">${escapeHtml(inst.meeting_types?.name || '會議')}</h3>
+      <div style="font-size:13px; color:var(--ink-soft); margin-bottom:12px;">${inst.meeting_date}${inst.meeting_types?.place ? ' · ' + escapeHtml(inst.meeting_types.place) : ''}</div>
+      <div class="field-row">
+        <div>
+          <div class="modal-field"><label>狀態</label><select id="mtd-status" class="mt-in" style="width:100%;">${Object.entries(MT_STATUS).map(([k, v]) => `<option value="${k}"${inst.status === k ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+          <div class="modal-field"><label>會議紀錄</label><textarea id="mtd-notes" style="min-height:150px; font-family:inherit; font-size:13.5px;">${escapeHtml(inst.notes || '')}</textarea></div>
+          <button type="button" class="btn-new-event" id="mtd-save">儲存狀態與紀錄</button>
+        </div>
+        <div>
+          <div style="font-size:13px; font-weight:700; margin-bottom:6px;">出席（${att.filter(x => x.attended).length} / ${att.length}）</div>
+          <div style="max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px;">
+            ${att.length ? `<table class="mt-table"><tbody>${att.map(x => `<tr data-aid="${x.id}"><td>${escapeHtml(x.users?.display_name || '—')}</td><td style="color:var(--ink-soft); font-size:12px;">${x.checked_in_at ? mtTime(x.checked_in_at) : ''}</td><td><button type="button" class="btn-text mtd-att" data-on="${x.attended ? 1 : 0}" style="${x.attended ? 'color:var(--blue); font-weight:700;' : ''}">${x.attended ? '✓ 已出席' : '標記出席'}</button></td></tr>`).join('')}</tbody></table>` : '<div style="padding:10px; color:var(--ink-soft); font-size:13px;">此會議類型未指定群組，沒有自動邀請的出席者。</div>'}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px; font-weight:700; margin:16px 0 6px;">📋 待辦事項</div>
+      <div id="mtd-items">${it.length ? `<table class="mt-table"><tbody>${it.map(x => `<tr data-iid="${x.id}"><td style="width:28px;"><input type="checkbox" class="mtd-item-cb"${x.status === 'done' ? ' checked' : ''}></td><td style="${x.status === 'done' ? 'text-decoration:line-through; color:var(--ink-soft);' : ''}">${escapeHtml(x.content)}</td><td style="color:var(--ink-soft);">${x.users?.display_name ? escapeHtml(x.users.display_name) : '未指派'}</td><td><button type="button" class="btn-text mtd-item-del" style="color:var(--red);">刪除</button></td></tr>`).join('')}</tbody></table>` : '<div style="color:var(--ink-soft); font-size:13px;">尚無待辦事項。</div>'}</div>
+      <div class="mt-bar" style="margin-top:10px;"><input type="text" id="mtd-new" class="mt-in" placeholder="新增待辦事項…" style="flex:1; min-width:200px;">
+        <select id="mtd-assignee" class="mt-in"><option value="">不指派</option>${att.map(x => `<option value="${x.user_id}">${escapeHtml(x.users?.display_name || '—')}</option>`).join('')}</select>
+        <button type="button" class="btn-new-event" id="mtd-add">＋ 新增</button></div>
+      <div style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;">提醒：在這裡新增的待辦事項不會推送 LINE 通知給負責人；從 LINE 頁面新增才會通知。</div>`;
+    mtEl('mtd-back').addEventListener('click', () => mtShowTab(mtState.backTab));
+    const reload = () => mtInstOpen(id, mtState.backTab);
+    const fail = (e) => mtMsg('更新失敗：' + (e.message || e), true);
+    mtEl('mtd-save').addEventListener('click', async () => {
+      const { error } = await supabaseClient.from('meeting_instances').update({ notes: mtEl('mtd-notes').value.trim() || null, status: mtEl('mtd-status').value }).eq('id', id);
+      if (error) fail(error); else { await reload(); mtMsg('已儲存。'); }
+    });
+    mtEl('mt-body').querySelectorAll('.mtd-att').forEach(b => b.addEventListener('click', async () => {
+      const on = b.dataset.on !== '1';
+      const { error } = await supabaseClient.from('meeting_attendance').update({ attended: on, checked_in_at: on ? new Date().toISOString() : null }).eq('id', b.closest('tr').dataset.aid);
+      if (error) fail(error); else reload();
+    }));
+    mtEl('mt-body').querySelectorAll('.mtd-item-cb').forEach(c => c.addEventListener('change', async () => {
+      const { error } = await supabaseClient.from('meeting_action_items').update({ status: c.checked ? 'done' : 'open' }).eq('id', c.closest('tr').dataset.iid);
+      if (error) fail(error); else reload();
+    }));
+    mtEl('mt-body').querySelectorAll('.mtd-item-del').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('確定要刪除此待辦事項嗎？')) return;
+      const { error } = await supabaseClient.from('meeting_action_items').delete().eq('id', b.closest('tr').dataset.iid);
+      if (error) fail(error); else reload();
+    }));
+    mtEl('mtd-add').addEventListener('click', async () => {
+      const content = mtEl('mtd-new').value.trim();
+      if (!content) return;
+      const { error } = await supabaseClient.from('meeting_action_items').insert({ meeting_instance_id: id, content, assignee_user_id: mtEl('mtd-assignee').value || null });
+      if (error) fail(error); else reload();
+    });
+  } catch (e) { mtMsg('載入失敗：' + (e.message || e), true); }
+}
+
+/* ===== 3. 待辦事項總覽（所有人）===== */
+async function mtItemsInit() {
+  mtEl('mt-body').innerHTML = `<div class="mt-bar">
+      <label>狀態 <select id="mtt-status" class="mt-in"><option value="open">未完成</option><option value="done">已完成</option><option value="">全部</option></select></label>
+      <label>負責人 <select id="mtt-who" class="mt-in"><option value="">全部</option></select></label>
+      <label>會議 <select id="mtt-type" class="mt-in"><option value="">全部</option></select></label>
+      <label>從 <input type="date" id="mtt-from" class="mt-in"></label><label>到 <input type="date" id="mtt-to" class="mt-in"></label>
+      <button type="button" class="btn-new-event" id="mtt-go">查詢</button></div><div id="mtt-list"></div>`;
+  mtEl('mtt-go').addEventListener('click', mtItemsLoad);
+  await mtItemsLoad(true);
+}
+async function mtItemsLoad(first) {
+  const list = mtEl('mtt-list'); list.innerHTML = '<div style="color:var(--ink-soft);">載入中…</div>';
+  try {
+    const status = mtEl('mtt-status').value, from = mtEl('mtt-from').value, to = mtEl('mtt-to').value;
+    let rows = await mtAll(() => {
+      let q = supabaseClient.from('meeting_action_items').select('id, content, status, assignee_user_id, created_at, meeting_instance_id, users(display_name), meeting_instances!inner(meeting_date, meeting_type_id, meeting_types(name))')
+        .order('created_at', { ascending: false }).order('id', { ascending: true });
+      if (status) q = q.eq('status', status);
+      if (from) q = q.gte('meeting_instances.meeting_date', from);
+      if (to) q = q.lte('meeting_instances.meeting_date', to);
+      return q;
+    });
+    // 負責人／會議的下拉選項取自目前查到的資料（保留已選）
+    const whoSel = mtEl('mtt-who'), typeSel = mtEl('mtt-type'), keepW = whoSel.value, keepT = typeSel.value;
+    const who = new Map(), types = new Map();
+    rows.forEach(r => { if (r.assignee_user_id) who.set(r.assignee_user_id, r.users?.display_name || '—'); types.set(r.meeting_instances.meeting_type_id, r.meeting_instances.meeting_types?.name || '會議'); });
+    whoSel.innerHTML = '<option value="">全部</option><option value="__none">未指派</option>' + [...who].map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('');
+    typeSel.innerHTML = '<option value="">全部</option>' + [...types].map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('');
+    whoSel.value = keepW; typeSel.value = keepT;
+    whoSel.onchange = typeSel.onchange = () => mtItemsRender(rows);
+    mtState.itemsCache = rows;
+    mtItemsRender(rows);
+  } catch (e) { list.innerHTML = ''; mtMsg('載入失敗：' + (e.message || e), true); }
+}
+function mtItemsRender(all) {
+  const w = mtEl('mtt-who').value, t = mtEl('mtt-type').value, list = mtEl('mtt-list');
+  const rows = all.filter(r => (!w || (w === '__none' ? !r.assignee_user_id : r.assignee_user_id === w)) && (!t || r.meeting_instances.meeting_type_id === t))
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === 'open' ? -1 : 1) || String(b.meeting_instances.meeting_date).localeCompare(a.meeting_instances.meeting_date));
+  const done = rows.filter(r => r.status === 'done').length;
+  if (!rows.length) { list.innerHTML = '<div style="color:var(--ink-soft);">沒有符合的待辦事項。</div>'; return; }
+  list.innerHTML = `<div style="font-size:12.5px; color:var(--ink-soft); margin-bottom:6px;">共 ${rows.length} 筆，已完成 ${done}（${mtPctText(mtPct(done, rows.length))}）</div>
+    <table class="mt-table"><thead><tr><th></th><th>內容</th><th>負責人</th><th>會議</th><th>日期</th><th></th></tr></thead><tbody>${rows.map(r => `<tr data-id="${r.id}" data-inst="${r.meeting_instance_id}">
+      <td style="width:28px;"><input type="checkbox" class="mtt-cb"${r.status === 'done' ? ' checked' : ''}></td>
+      <td style="${r.status === 'done' ? 'text-decoration:line-through; color:var(--ink-soft);' : ''}">${escapeHtml(r.content)}</td>
+      <td>${r.users?.display_name ? escapeHtml(r.users.display_name) : '未指派'}</td>
+      <td>${escapeHtml(r.meeting_instances.meeting_types?.name || '會議')}</td><td>${r.meeting_instances.meeting_date}</td>
+      <td style="white-space:nowrap;"><button type="button" class="btn-text mtt-open">開啟會議</button><button type="button" class="btn-text mtt-del" style="color:var(--red);">刪除</button></td></tr>`).join('')}</tbody></table>`;
+  list.querySelectorAll('.mtt-cb').forEach(c => c.addEventListener('change', async () => {
+    const { error } = await supabaseClient.from('meeting_action_items').update({ status: c.checked ? 'done' : 'open' }).eq('id', c.closest('tr').dataset.id);
+    if (error) { mtMsg('更新失敗：' + error.message, true); c.checked = !c.checked; return; }
+    const row = mtState.itemsCache.find(x => x.id === c.closest('tr').dataset.id); if (row) row.status = c.checked ? 'done' : 'open';
+    mtItemsRender(mtState.itemsCache);
+  }));
+  list.querySelectorAll('.mtt-open').forEach(b => b.addEventListener('click', () => mtInstOpen(b.closest('tr').dataset.inst, 'items')));
+  list.querySelectorAll('.mtt-del').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('確定要刪除此待辦事項嗎？')) return;
+    const id = b.closest('tr').dataset.id;
+    const { error } = await supabaseClient.from('meeting_action_items').delete().eq('id', id);
+    if (error) { mtMsg('刪除失敗：' + error.message, true); return; }
+    mtState.itemsCache = mtState.itemsCache.filter(x => x.id !== id); mtItemsRender(mtState.itemsCache);
+  }));
+}
+
+/* ===== 4. 統計 + 匯出 ===== */
+// 統計口徑（LINE 頁面的 meeting_stats 要和這裡一致）：
+//   計入場次＝區間內、日期 ≤ 今天、狀態不是「已取消」；出席率＝出席人次 ÷ 受邀人次
+//   待辦＝區間內所有場次（含已取消）的待辦；完成率＝已完成 ÷ 全部
+function mtComputeStats(raw, today) {
+  const counted = new Set(raw.instances.filter(i => i.meeting_date <= today && i.status !== 'cancelled').map(i => i.id));
+  const typeName = new Map(raw.types.map(t => [t.id, t.name]));
+  const instType = new Map(raw.instances.map(i => [i.id, i.meeting_type_id]));
+  const byType = new Map(), byPerson = new Map();
+  const T = (id) => { if (!byType.has(id)) byType.set(id, { type_id: id, name: typeName.get(id) || '會議', held: 0, invited: 0, attended: 0 }); return byType.get(id); };
+  const P = (id, name) => { if (!byPerson.has(id)) byPerson.set(id, { user_id: id, name: name || '—', invited: 0, attended: 0, items_open: 0, items_done: 0 }); return byPerson.get(id); };
+  raw.instances.forEach(i => { if (counted.has(i.id)) T(i.meeting_type_id).held++; });
+  raw.attendance.forEach(a => {
+    if (!counted.has(a.meeting_instance_id)) return;
+    const t = T(instType.get(a.meeting_instance_id)), p = P(a.user_id, a.users?.display_name);
+    t.invited++; p.invited++;
+    if (a.attended) { t.attended++; p.attended++; }
+  });
+  let open = 0, done = 0;
+  raw.items.forEach(it => {
+    if (it.status === 'done') done++; else open++;
+    if (it.assignee_user_id) { const p = P(it.assignee_user_id, it.users?.display_name); if (it.status === 'done') p.items_done++; else p.items_open++; }
+  });
+  const fin = (o) => Object.assign(o, { rate: mtPct(o.attended, o.invited) });
+  return {
+    held: counted.size,
+    by_type: [...byType.values()].map(fin).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')),
+    by_person: [...byPerson.values()].map(fin).sort((a, b) => (b.invited ? 1 : 0) - (a.invited ? 1 : 0) || (a.rate ?? 101) - (b.rate ?? 101) || a.name.localeCompare(b.name, 'zh-Hant')),
+    items: { total: open + done, done, open, rate: mtPct(done, open + done) },
+  };
+}
+async function mtStatsFetch(from, to) {
+  await supabaseClient.rpc('ensure_meeting_instances', { p_from: from, p_to: to });
+  const [types, instances, attendance, items] = await Promise.all([
+    mtAll(() => supabaseClient.from('meeting_types').select('id, name').order('id', { ascending: true })),
+    mtAll(() => supabaseClient.from('meeting_instances').select('id, meeting_date, status, meeting_type_id').gte('meeting_date', from).lte('meeting_date', to).order('id', { ascending: true })),
+    mtAll(() => supabaseClient.from('meeting_attendance').select('id, meeting_instance_id, user_id, attended, checked_in_at, users(display_name), meeting_instances!inner(meeting_date)').gte('meeting_instances.meeting_date', from).lte('meeting_instances.meeting_date', to).order('id', { ascending: true })),
+    mtAll(() => supabaseClient.from('meeting_action_items').select('id, content, status, assignee_user_id, created_at, meeting_instance_id, users(display_name), meeting_instances!inner(meeting_date)').gte('meeting_instances.meeting_date', from).lte('meeting_instances.meeting_date', to).order('id', { ascending: true })),
+  ]);
+  return { types, instances, attendance, items };
+}
+async function mtStatsInit() {
+  const today = mtToday();
+  mtEl('mt-body').innerHTML = `<div class="mt-bar">
+      <label>從 <input type="date" id="mts-from" class="mt-in" value="${mtAddDays(today, -90)}"></label>
+      <label>到 <input type="date" id="mts-to" class="mt-in" value="${today}"></label>
+      <button type="button" class="btn-new-event" id="mts-go">統計</button>
+      <span style="flex:1;"></span>
+      <button type="button" class="btn-cancel" id="mts-xlsx" style="padding:8px 14px;" disabled>匯出 Excel</button>
+      <button type="button" class="btn-cancel" id="mts-csv" style="padding:8px 14px;" disabled>匯出出席明細 CSV</button></div>
+    <div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;">口徑：只計入「日期不晚於今天、且未取消」的場次；出席率＝出席人次 ÷ 受邀人次。待辦統計含區間內所有場次。</div>
+    <div id="mts-out"></div>`;
+  mtEl('mts-go').addEventListener('click', mtStatsRun);
+  mtEl('mts-xlsx').addEventListener('click', mtStatsXlsx);
+  mtEl('mts-csv').addEventListener('click', mtStatsCsv);
+  await mtStatsRun();
+}
+async function mtStatsRun() {
+  const from = mtEl('mts-from').value, to = mtEl('mts-to').value, out = mtEl('mts-out');
+  if (!from || !to || from > to) { mtMsg('請選擇正確的日期區間。', true); return; }
+  if ((new Date(to) - new Date(from)) / 86400000 > mtMaxDays) { mtMsg('區間最多 ' + mtMaxDays + ' 天。', true); return; }
+  mtMsg(''); out.innerHTML = '<div style="color:var(--ink-soft);">統計中…</div>';
+  try {
+    const raw = await mtStatsFetch(from, to), s = mtComputeStats(raw, mtToday());
+    mtState.stats = { from, to, raw, s };
+    mtEl('mts-xlsx').disabled = mtEl('mts-csv').disabled = false;
+    const tot = s.by_type.reduce((a, t) => ({ i: a.i + t.invited, a: a.a + t.attended }), { i: 0, a: 0 });
+    out.innerHTML = `<div class="mt-cards">
+        <div><b>${s.held}</b><span>已召開場次</span></div><div><b>${mtPctText(mtPct(tot.a, tot.i))}</b><span>整體出席率（${tot.a}/${tot.i}）</span></div>
+        <div><b>${s.items.total}</b><span>待辦事項</span></div><div><b>${mtPctText(s.items.rate)}</b><span>待辦完成率（${s.items.done}/${s.items.total}）</span></div></div>
+      <h4 style="margin:14px 0 6px;">依會議類型</h4>
+      ${s.by_type.length ? `<table class="mt-table"><thead><tr><th>會議</th><th>場次</th><th>受邀人次</th><th>出席人次</th><th>出席率</th></tr></thead><tbody>${s.by_type.map(t => `<tr><td><b>${escapeHtml(t.name)}</b></td><td>${t.held}</td><td>${t.invited}</td><td>${t.attended}</td><td>${mtPctText(t.rate)}</td></tr>`).join('')}</tbody></table>` : '<div style="color:var(--ink-soft);">這段期間沒有已召開的場次。</div>'}
+      <h4 style="margin:14px 0 6px;">依個人（出席率由低到高）</h4>
+      ${s.by_person.length ? `<table class="mt-table"><thead><tr><th>姓名</th><th>受邀</th><th>出席</th><th>出席率</th><th>待辦未完成</th><th>待辦已完成</th></tr></thead><tbody>${s.by_person.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${p.invited}</td><td>${p.attended}</td><td>${mtPctText(p.rate)}</td><td>${p.items_open}</td><td>${p.items_done}</td></tr>`).join('')}</tbody></table>` : '<div style="color:var(--ink-soft);">沒有資料。</div>'}`;
+  } catch (e) { out.innerHTML = ''; mtMsg('統計失敗：' + (e.message || e), true); }
+}
+function mtDetailRows() {
+  const { raw } = mtState.stats;
+  const inst = new Map(raw.instances.map(i => [i.id, i])), tn = new Map(raw.types.map(t => [t.id, t.name]));
+  return raw.attendance.map(a => {
+    const i = inst.get(a.meeting_instance_id) || {};
+    return [i.meeting_date || '', tn.get(i.meeting_type_id) || '會議', MT_STATUS[i.status] || '', a.users?.display_name || '', a.attended ? '是' : '否', mtTime(a.checked_in_at)];
+  }).sort((x, y) => String(x[0]).localeCompare(y[0]) || x[1].localeCompare(y[1], 'zh-Hant') || x[3].localeCompare(y[3], 'zh-Hant'));
+}
+const MT_DETAIL_HEAD = ['日期', '會議', '場次狀態', '姓名', '是否出席', '簽到時間'];
+function mtStatsCsv() {
+  const st = mtState.stats; if (!st) return;
+  const lines = [MT_DETAIL_HEAD, ...mtDetailRows()].map(r => r.map(csvEscape).join(','));
+  mtDownload(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' }), `會議出席明細_${st.from}_${st.to}.csv`);
+}
+async function mtStatsXlsx() {
+  const st = mtState.stats; if (!st) return;
+  const btn = mtEl('mts-xlsx'), old = btn.textContent; btn.disabled = true; btn.textContent = '產生中…';
+  try {
+    await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js', () => window.ExcelJS);
+    const wb = new ExcelJS.Workbook(), s = st.s;
+    const sheet = (name, head, rows, widths) => {
+      const ws = wb.addWorksheet(name);
+      ws.addRow(head).font = { bold: true };
+      rows.forEach(r => ws.addRow(r));
+      ws.columns.forEach((c, i) => { c.width = widths[i] || 14; });
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: head.length } };
+    };
+    const pct = (v) => (v == null ? '' : v / 100);
+    sheet('依會議類型', ['會議', '場次', '受邀人次', '出席人次', '出席率'], s.by_type.map(t => [t.name, t.held, t.invited, t.attended, pct(t.rate)]), [24, 10, 12, 12, 10]);
+    sheet('依個人', ['姓名', '受邀', '出席', '出席率', '待辦未完成', '待辦已完成'], s.by_person.map(p => [p.name, p.invited, p.attended, pct(p.rate), p.items_open, p.items_done]), [18, 10, 10, 10, 12, 12]);
+    wb.getWorksheet('依會議類型').getColumn(5).numFmt = '0.0%'; wb.getWorksheet('依個人').getColumn(4).numFmt = '0.0%';
+    sheet('出席明細', MT_DETAIL_HEAD, mtDetailRows(), [12, 20, 12, 16, 10, 20]);
+    const inst = new Map(st.raw.instances.map(i => [i.id, i])), tn = new Map(st.raw.types.map(t => [t.id, t.name]));
+    sheet('待辦事項', ['日期', '會議', '內容', '負責人', '狀態'], st.raw.items.map(it => { const i = inst.get(it.meeting_instance_id) || {}; return [i.meeting_date || '', tn.get(i.meeting_type_id) || '會議', it.content, it.users?.display_name || '未指派', it.status === 'done' ? '已完成' : '未完成']; })
+      .sort((x, y) => String(x[0]).localeCompare(y[0])), [12, 20, 50, 16, 10]);
+    const buf = await wb.xlsx.writeBuffer();
+    mtDownload(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `會議統計_${st.from}_${st.to}.xlsx`);
+  } catch (e) { mtMsg('匯出失敗：' + (e.message || e), true); }
+  btn.disabled = false; btn.textContent = old;
+}
 
 
 /* ---------- Meeting Admins (global permission list) ---------- */
